@@ -141,8 +141,8 @@ class Env:
 
     def make_anim(self, prefix=""):
         filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}episode-{self.episode}"))
-        data_state = np.array(self.board_memory) * 255
-        data = np.array(self.state_memory) * 255
+        data = np.array(self.board_memory) * 255
+        data_state = np.array(self.state_memory) * 255
         imageio.mimsave(filepath + '.gif', data.astype(np.uint8), duration=0.1)
         imageio.mimsave(filepath + '_state.gif', data_state.astype(np.uint8), duration=0.1)
 
