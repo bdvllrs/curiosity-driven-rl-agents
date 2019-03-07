@@ -20,7 +20,8 @@ num_episodes = config().learning.num_episodes
 
 date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
-os.mkdir(filepath)
+if config().sim.output.save_figs:
+    os.mkdir(filepath)
 
 for e in tqdm(range(num_episodes)):
     state = env.reset()
