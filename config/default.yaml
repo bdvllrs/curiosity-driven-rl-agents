@@ -1,0 +1,10 @@
+# This file is versioned.
+# Please copy and rename this config file to a private config.yaml
+
+sim:  # simulations
+  env:
+    size: 20
+    number_coins: 5
+    max_length: 100
+  output:
+    path: path/to/output/videos
