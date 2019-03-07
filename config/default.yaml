@@ -3,8 +3,28 @@
 
 sim:  # simulations
   env:
-    size: 20
-    number_coins: 5
-    max_length: 100
+    size: 20  # Size of the board
+    number_coins: 10  # Number of coins on the board
+    max_length: 100  # Maximum number of iterations before terminal state
   output:
     path: path/to/output/videos
+    save_every: 100  # Save results every 100 episodes
+
+learning:
+  cuda: Yes
+  batch_size: 64
+  num_episodes: 1000 # Number of episodes of learning
+
+  DDQN: Yes
+  gamma: 0.9 # Discount factor.
+  EPS_START: 0.9 # Probability of exploration.
+  EPS_END: 0.1
+  EPS_DECAY: 500000
+  lr: 0.01 # Learning rate
+  update_frequency: 20 # Update the target net every...
+  soft_update_frequency: 50 # Update the target net every...
+  update_type: soft # Type of update.
+  tau: 0.5
+
+experience_replay:
+  size: 10000  # Size of the experience replay buffer

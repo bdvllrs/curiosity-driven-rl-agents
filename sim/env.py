@@ -105,6 +105,7 @@ class Env:
         self.episode += 1
         self.iter = 1
         self.board_memory = []
+        self.state_memory = []
         self.board = maze(self.size, self.size)
         possible_positions = list(zip(*np.where(self.board == 1)))
         self.agent_position = random.sample(possible_positions, 1)[0]
