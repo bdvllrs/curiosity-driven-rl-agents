@@ -1,3 +1,5 @@
+import os
+from datetime import datetime
 import torch
 from tqdm import tqdm
 from sim import Env, DQNAgent
@@ -16,6 +18,10 @@ action_to_number = {"top": 0, "bottom": 1, "right": 2, "left": 3}
 batch_size = config().learning.batch_size
 num_episodes = config().learning.num_episodes
 
+date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
+os.mkdir(filepath)
+
 for e in tqdm(range(num_episodes)):
     state = env.reset()
     terminal = False
@@ -32,5 +38,5 @@ for e in tqdm(range(num_episodes)):
             batch = list(zip(*experience_replay.get(batch_size)))
             agent.learn(batch)
 
-    if not e % config().sim.output.save_every:
-        env.make_anim()
+    if config().sim.output.save_figs and not e % config().sim.output.save_every:
+        env.make_anim(date + "/")

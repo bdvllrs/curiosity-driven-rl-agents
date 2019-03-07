@@ -8,6 +8,7 @@ sim:  # simulations
     max_length: 100  # Maximum number of iterations before terminal state
   output:
     path: path/to/output/videos
+    save_figs: No
     save_every: 100  # Save results every 100 episodes
 
 learning:

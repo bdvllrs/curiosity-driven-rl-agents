@@ -139,8 +139,8 @@ class Env:
         self.iter += 1
         return next_state, reward, terminal
 
-    def make_anim(self):
-        filepath = os.path.abspath(os.path.join(config().sim.output.path, f"episode-{self.episode}"))
+    def make_anim(self, prefix=""):
+        filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}episode-{self.episode}"))
         data_state = np.array(self.board_memory) * 255
         data = np.array(self.state_memory) * 255
         imageio.mimsave(filepath + '.gif', data.astype(np.uint8), duration=0.1)
