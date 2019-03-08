@@ -4,7 +4,7 @@
 sim:  # simulations
   env:
     size: 20  # Size of the board
-    number_coins: 100  # Number of coins on the board
+    number_coins: 60  # Number of coins on the board
     max_length: 100  # Maximum number of iterations before terminal state
   output:
     path: path/to/output/videos

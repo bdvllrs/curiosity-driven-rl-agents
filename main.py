@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("agg")
+
 import os
 from datetime import datetime
 import torch
@@ -25,7 +28,6 @@ date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
 if config().sim.output.save_figs:
     os.mkdir(filepath)
-
 
 is_test = False
 cycle_count = 1
@@ -78,5 +80,3 @@ for e in tqdm(range(num_episodes)):
         train_count += 1
 
     cycle_count += 1
-
-

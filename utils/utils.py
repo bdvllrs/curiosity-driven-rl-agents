@@ -25,6 +25,7 @@ def save_figs(train_returns, test_returns, train_loss, test_loss, prefix=""):
     plt.xlabel("Episodes")
     plt.ylabel("Expected return")
     plt.savefig(filepath + "_returns.eps", type="eps", dpi=1000)
+    plt.show()
 
     plt.figure(1)
     plt.plot(range(len(train_loss)), train_loss, label="Train")
@@ -33,6 +34,7 @@ def save_figs(train_returns, test_returns, train_loss, test_loss, prefix=""):
     plt.xlabel("Episodes")
     plt.ylabel("DQN Losses")
     plt.savefig(filepath + "_losses.eps", type="eps", dpi=1000)
+    plt.show()
 
 
 class Metrics:
