@@ -17,7 +17,7 @@ learning:
   num_episodes: 1000 # Number of episodes of learning
 
   DDQN: Yes
-  gamma: 0.9 # Discount factor.
+  gamma: 0.999 # Discount factor.
   EPS_START: 0.9 # Probability of exploration.
   EPS_END: 0.1
   EPS_DECAY: 500000
