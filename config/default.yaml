@@ -4,7 +4,7 @@
 sim:  # simulations
   env:
     size: 20  # Size of the board
-    number_coins: 10  # Number of coins on the board
+    number_coins: 100  # Number of coins on the board
     max_length: 100  # Maximum number of iterations before terminal state
   output:
     path: path/to/output/videos
@@ -29,3 +29,7 @@ learning:
 
 experience_replay:
   size: 10000  # Size of the experience replay buffer
+
+metrics:
+  train_cycle_length: 20 # in number of episodes (metrics are averaged over)
+  test_cycle_length: 20

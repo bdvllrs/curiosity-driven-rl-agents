@@ -36,12 +36,10 @@ class Env:
         return board.transpose((1, 2, 0))
 
     def _add_board(self, board):
-        b = cv2.resize(board, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
-        self.board_memory.append(b)
+        self.board_memory.append(board)
 
     def _add_state(self, board):
-        b = cv2.resize(board, None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
-        self.state_memory.append(b)
+        self.state_memory.append(board)
 
     def _get_state(self, board):
         x, y = self.agent_position
@@ -140,6 +138,9 @@ class Env:
         return next_state, reward, terminal
 
     def make_anim(self, prefix=""):
+        for t in range(len(self.board_memory)):
+            self.board_memory[t] = cv2.resize(self.board_memory[t], None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
+            self.state_memory[t] = cv2.resize(self.state_memory[t], None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
         filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}episode-{self.episode}"))
         data = np.array(self.board_memory) * 255
         data_state = np.array(self.state_memory) * 255
