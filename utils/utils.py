@@ -16,8 +16,10 @@ def output_size_conv2d_layer(height, width, layer):
     return height_out, width_out
 
 
-def save_figs(train_returns, test_returns, train_loss, test_loss, prefix=""):
+def save_figs(train_returns, test_returns, train_loss, prefix=""):
     filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}metrics"))
+    plt.clf()
+    plt.cla()
     plt.figure(0)
     plt.plot(range(len(train_returns)), train_returns, label="Train")
     plt.plot(range(len(test_returns)), test_returns, label="Test")
@@ -25,16 +27,14 @@ def save_figs(train_returns, test_returns, train_loss, test_loss, prefix=""):
     plt.xlabel("Episodes")
     plt.ylabel("Expected return")
     plt.savefig(filepath + "_returns.eps", type="eps", dpi=1000)
-    plt.show()
 
+    plt.clf()
+    plt.cla()
     plt.figure(1)
-    plt.plot(range(len(train_loss)), train_loss, label="Train")
-    plt.plot(range(len(test_loss)), test_loss, label="Test")
-    plt.legend()
+    plt.plot(range(len(train_loss)), train_loss)
     plt.xlabel("Episodes")
-    plt.ylabel("DQN Losses")
+    plt.ylabel("DQN Training Losses")
     plt.savefig(filepath + "_losses.eps", type="eps", dpi=1000)
-    plt.show()
 
 
 class Metrics:

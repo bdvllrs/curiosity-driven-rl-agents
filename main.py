@@ -1,6 +1,4 @@
 import matplotlib
-matplotlib.use("agg")
-
 import os
 from datetime import datetime
 import torch
@@ -69,8 +67,8 @@ for e in tqdm(range(num_episodes)):
     if config().sim.output.save_figs and ((not is_test and cycle_count == train_cycle_length)
                                           or (is_test and cycle_count == test_cycle_length)):
         train_returns, train_loss = train_metrics.get_metrics()
-        test_returns, test_loss = test_metrics.get_metrics()
-        save_figs(train_returns, test_returns, train_loss, test_loss, date + "/")
+        test_returns, _ = test_metrics.get_metrics()
+        save_figs(train_returns, test_returns, train_loss, date + "/")
         cycle_count = 0
         is_test = not is_test
 
