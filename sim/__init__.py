@@ -1,2 +1,2 @@
 from sim.env import Env
-from sim.agent import DQNAgent
+from sim.agent import Agent, CuriousAgent

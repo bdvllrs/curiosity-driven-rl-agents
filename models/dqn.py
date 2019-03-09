@@ -8,27 +8,24 @@ class DQNUnit(nn.Module):
         super(DQNUnit, self).__init__()
         board_size = config().sim.env.size
         n_actions = 4
-        conv_layer1 = nn.Conv2d(3, 5, 3)
-        conv_layer2 = nn.Conv2d(5, 5, 3)
-        conv_layer3 = nn.MaxPool2d(3)
-        out_dim1 = output_size_conv2d_layer(board_size, board_size, conv_layer1)
-        out_dim2 = output_size_conv2d_layer(out_dim1[0], out_dim1[1], conv_layer2)
-        out_dim3 = output_size_conv2d_layer(out_dim2[0], out_dim2[1], conv_layer3)
-        self.conv = nn.Sequential(
-            conv_layer1,
+        conv_layers = [
+            nn.Conv2d(3, 10, 3),
             nn.ReLU(),
-            conv_layer2,
+            nn.Conv2d(10, 10, 3),
+            nn.MaxPool2d(2),
             nn.ReLU(),
-            conv_layer3
-        )
+            nn.Conv2d(10, 1, 3),
+            nn.ReLU()
+        ]
+        out_dim = (board_size, board_size)
+        for layer in conv_layers:
+            if type(layer) != nn.ReLU:
+                out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
+        self.conv = nn.Sequential(*conv_layers)
         self.fc = nn.Sequential(
-                nn.Linear(out_dim3[0] * out_dim3[1] * 5, 512),
+                nn.Linear(out_dim[0] * out_dim[1] * 1, 32),
                 nn.ReLU(),
-                nn.Linear(512, 64),
-                nn.ReLU(),
-                nn.Linear(64, 16),
-                nn.ReLU(),
-                nn.Linear(16, n_actions),
+                nn.Linear(32, n_actions),
         )
 
     def forward(self, x):
