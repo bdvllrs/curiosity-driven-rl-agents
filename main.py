@@ -48,14 +48,14 @@ for e in tqdm(range(num_episodes)):
         next_state, extrinsinc_reward, terminal = env.step(action)
 
         reward = extrinsinc_reward + agent.intrinsic_reward(state, action, next_state)
-        experience_replay.add([state, next_state, action_to_number[action], reward])
+        experience_replay.add(state, next_state, action_to_number[action], reward)
 
         expected_return += discount * reward
         discount *= gamma
 
         # Do some learning
-        if not is_test and len(experience_replay) > 5 * batch_size:
-            batch = list(zip(*experience_replay.get(batch_size)))
+        batch = experience_replay.get_batch(batch_size)
+        if not is_test and batch is not None:
             metrics.add_loss(agent.learn(batch))
 
     metrics.add_return(expected_return)
