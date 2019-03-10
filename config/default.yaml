@@ -11,6 +11,9 @@ sim:  # simulations
     save_figs: No
     save_every: 100  # Save results every 100 episodes
 
+  agent:
+    type: curious  # in ["default", "curious"]
+
 learning:
   cuda: Yes
   batch_size: 64
@@ -25,6 +28,15 @@ learning:
   update_frequency: 100 # Update the target net every...
   update_type: hard # Type of update.
   tau: 0.5
+
+  curiosity:
+    eta: 0.2
+    feature_net:
+      lr: 0.001
+    feature_predictor:
+      lr: 0.001
+    action_predictor:
+      lr: 0.001
 
 testing:
   policy:

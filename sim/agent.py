@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from torch.optim import Adam
 
 from models.dqn import DQNUnit
+from models.icm import NextFeaturesPrediction, StateFeatures, ActionPrediction
 from utils import config
 
 
@@ -154,7 +155,61 @@ class Agent:
 
 
 class CuriousAgent(Agent):
+    """
+    Pathak et al. Curiosity
+    """
+    def __init__(self, device):
+        super(CuriousAgent, self).__init__(device)
+
+        self.feature_net = StateFeatures().to(self.device)
+        self.feature_predictor = NextFeaturesPrediction().to(self.device)
+        self.action_predictor = ActionPrediction().to(self.device)
+        self.feature_net_optimizer = Adam(self.feature_net.parameters(), lr=config().learning.curiosity.feature_net.lr)
+        self.feature_predictor_optimizer = Adam(self.feature_predictor.parameters(), lr=config().learning.curiosity.feature_predictor.lr)
+        self.action_predictor_optimizer = Adam(self.action_predictor.parameters(), lr=config().learning.curiosity.action_predictor.lr)
+
+        self.eta = config().learning.curiosity.eta
 
     def intrinsic_reward(self, prev_state, action, next_state):
-        # TODO
-        return 0
+        prev_state = torch.tensor(prev_state).to(self.device).unsqueeze(dim=0).float()
+        next_state = torch.tensor(next_state).to(self.device).unsqueeze(dim=0).float()
+        action = torch.tensor(action).to(self.device).unsqueeze(dim=0).unsqueeze(dim=0)
+        one_hot_actions = torch.zeros(action.size(0), 4).to(self.device)
+        one_hot_actions.scatter_(1, action, 1)
+        prev_features = self.feature_net(prev_state)
+        next_features = self.feature_net(next_state)
+        predicted_features = self.feature_predictor(one_hot_actions, prev_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features).detach().cpu().item()
+
+    def learn(self, batch):
+        # DQN Learning
+        loss_dqn = super(CuriousAgent, self).learn(batch)
+
+        # Intrinsic reward learning
+        state_batch, next_state_batch, action_batch, _ = batch
+        state_batch = torch.FloatTensor(state_batch).to(self.device)
+        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
+        action_batch = torch.LongTensor(action_batch).to(self.device).unsqueeze(dim=1)
+        one_hot_actions = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
+        one_hot_actions.scatter_(1, action_batch, 1)
+
+        self.feature_net_optimizer.zero_grad()
+        self.feature_predictor_optimizer.zero_grad()
+        self.action_predictor_optimizer.zero_grad()
+
+        feature_states = self.feature_net(state_batch)
+        feature_next_states = self.feature_net(next_state_batch)
+
+        predicted_actions = self.action_predictor(feature_states, feature_next_states)
+        predicted_feature_next_states = self.feature_predictor(one_hot_actions, feature_states)
+
+        loss_predictor = F.mse_loss(predicted_actions, one_hot_actions)
+        loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
+        loss = loss_next_state_predictor + loss_predictor
+        loss.backward()
+
+        self.feature_net_optimizer.step()
+        self.feature_predictor_optimizer.step()
+        self.action_predictor_optimizer.step()
+
+        return loss.detach().cpu().item() + loss_dqn

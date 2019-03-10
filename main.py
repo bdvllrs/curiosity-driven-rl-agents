@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 import torch
 from tqdm import tqdm
-from sim import Env, Agent
+from sim import Env, Agent, CuriousAgent
 from utils import config, Memory, Metrics, save_figs
 
 device = torch.device("cpu")
@@ -10,7 +10,10 @@ if config().learning.cuda and torch.cuda.is_available():
     device = torch.device("cuda")
 
 env = Env()
-agent = Agent(device)
+if config().sim.agent.type == "curious":
+    agent = CuriousAgent(device)
+else:
+    agent = Agent(device)
 experience_replay = Memory(config().experience_replay.size)
 train_metrics = Metrics()
 test_metrics = Metrics()
@@ -46,8 +49,8 @@ for e in tqdm(range(num_episodes)):
         action = possible_actions[agent.draw_action(state, is_test)]
         # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
         next_state, extrinsinc_reward, terminal = env.step(action)
-
-        reward = extrinsinc_reward + agent.intrinsic_reward(state, action, next_state)
+        intrinsic_reward = agent.intrinsic_reward(state, action_to_number[action], next_state)
+        reward = extrinsinc_reward + intrinsic_reward
         experience_replay.add(state, next_state, action_to_number[action], reward)
 
         expected_return += discount * reward
