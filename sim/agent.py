@@ -89,17 +89,7 @@ class Agent:
     def intrinsic_reward(self, prev_state, action, next_state):
         return 0
 
-    def learn(self, batch):
-        """
-        :param batch: for 1 agent, learn
-        :return: loss
-        """
-        state_batch, next_state_batch, action_batch, reward_batch = batch
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.LongTensor(action_batch).to(self.device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self.device)
-
+    def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         self.policy_optimizer.zero_grad()
 
         action_batch = action_batch.reshape(action_batch.size(0), 1)
@@ -181,15 +171,12 @@ class CuriousAgent(Agent):
         predicted_features = self.feature_predictor(one_hot_actions, prev_features)
         return self.eta / 2 * F.mse_loss(next_features, predicted_features).detach().cpu().item()
 
-    def learn(self, batch):
+    def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         # DQN Learning
-        loss_dqn = super(CuriousAgent, self).learn(batch)
+        loss_dqn = super(CuriousAgent, self).learn(state_batch, next_state_batch, action_batch, reward_batch)
 
         # Intrinsic reward learning
-        state_batch, next_state_batch, action_batch, _ = batch
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.LongTensor(action_batch).to(self.device).unsqueeze(dim=1)
+        action_batch = action_batch.unsqueeze(dim=1)
         one_hot_actions = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
         one_hot_actions.scatter_(1, action_batch, 1)
 

@@ -59,7 +59,12 @@ for e in tqdm(range(num_episodes)):
         # Do some learning
         batch = experience_replay.get_batch(batch_size)
         if not is_test and batch is not None:
-            metrics.add_loss(agent.learn(batch))
+            state_batch, next_state_batch, action_batch, reward_batch = batch
+            state_batch = torch.FloatTensor(state_batch).to(device)
+            next_state_batch = torch.FloatTensor(next_state_batch).to(device)
+            action_batch = torch.LongTensor(action_batch).to(device)
+            reward_batch = torch.FloatTensor(reward_batch).to(device)
+            metrics.add_loss(agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
 
     metrics.add_return(expected_return)
 
