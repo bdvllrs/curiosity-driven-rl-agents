@@ -6,7 +6,10 @@ import cv2
 import matplotlib.pyplot as plt
 from utils import maze, config
 
-colors = [(1, 1, 1), (0.9, 0.8, 0.25), (0.25, 0.9, 0.9), (0, 0, 0)]
+colors = {
+    "coin": (0.9, 0.8, 0.25),
+    "agent": (0.25, 0.9, 0.9)
+}
 
 
 class Env:
@@ -23,23 +26,33 @@ class Env:
         self.state_memory = []
 
     def _get_board(self):
-        board = np.tile(self.board.copy(), (3, 1, 1))  # add channels
+        board = self.board.copy()
         x, y = self.agent_position[0], self.agent_position[1]
-        board[0, x, y] = colors[2][0]
-        board[1, x, y] = colors[2][1]
-        board[2, x, y] = colors[2][2]
+        board[x, y] = 0.6
         for coord in self.coin_positions:
             x, y = coord
-            board[0, x, y] = colors[1][0]
-            board[1, x, y] = colors[1][1]
-            board[2, x, y] = colors[1][2]
-        return board.transpose((1, 2, 0))
+            board[x, y] = 0.3
+        return board
 
     def _add_board(self, board):
-        self.board_memory.append(board)
+        self.board_memory.append(self._board_to_image(board))
+
+    def _board_to_image(self, board):
+        state = np.zeros((board.shape[0], board.shape[1], 3))
+        for i in range(board.shape[0]):
+            for j in range(board.shape[1]):
+                if board[i, j] == 0:  # wall
+                    state[i, j, :] = [0, 0, 0]
+                elif board[i, j] == 1:  # free position
+                    state[i, j, :] = [1, 1, 1]
+                elif board[i, j] == 0.3:  # coin
+                    state[i, j, :] = colors["coin"]
+                else:  # agent
+                    state[i, j, :] = colors["agent"]
+        return state
 
     def _add_state(self, board):
-        self.state_memory.append(board)
+        self.state_memory.append(self._board_to_image(board))
 
     def _get_state(self, board):
         x, y = self.agent_position
@@ -51,27 +64,27 @@ class Env:
         state[x, y] = board[x, y]
         for k in range(1, self.size):
             if not stop_top:
-                state[x, y + k, :] = board[x, y + k]
-                state[x + 1, y + k, :] = [0, 0, 0] if self.board[x + 1, y + k] == 0 else [1, 1, 1]
-                state[x - 1, y + k, :] = [0, 0, 0] if self.board[x - 1, y + k] == 0 else [1, 1, 1]
+                state[x, y + k] = board[x, y + k]
+                state[x + 1, y + k] = 0 if self.board[x + 1, y + k] == 0 else 1
+                state[x - 1, y + k] = 0 if self.board[x - 1, y + k] == 0 else 1
                 if self.board[x, y + k] == 0:
                     stop_top = True
             if not stop_bottom:
-                state[x, y - k, :] = board[x, y - k]
-                state[x + 1, y - k, :] = [0, 0, 0] if self.board[x + 1, y - k] == 0 else [1, 1, 1]
-                state[x - 1, y - k, :] = [0, 0, 0] if self.board[x - 1, y - k] == 0 else [1, 1, 1]
+                state[x, y - k] = board[x, y - k]
+                state[x + 1, y - k] = 0 if self.board[x + 1, y - k] == 0 else 1
+                state[x - 1, y - k] = 0 if self.board[x - 1, y - k] == 0 else 1
                 if self.board[x, y - k] == 0:
                     stop_bottom = True
             if not stop_left:
-                state[x - k, y, :] = board[x - k, y]
-                state[x - k, y + 1, :] = [0, 0, 0] if self.board[x - k, y + 1] == 0 else [1, 1, 1]
-                state[x - k, y - 1, :] = [0, 0, 0] if self.board[x - k, y - 1] == 0 else [1, 1, 1]
+                state[x - k, y] = board[x - k, y]
+                state[x - k, y + 1] = 0 if self.board[x - k, y + 1] == 0 else 1
+                state[x - k, y - 1] = 0 if self.board[x - k, y - 1] == 0 else 1
                 if self.board[x - k, y] == 0:
                     stop_left = True
             if not stop_right:
-                state[x + k, y, :] = board[x + k, y]
-                state[x + k, y + 1, :] = [0, 0, 0] if self.board[x + k, y + 1] == 0 else [1, 1, 1]
-                state[x + k, y - 1, :] = [0, 0, 0] if self.board[x + k, y - 1] == 0 else [1, 1, 1]
+                state[x + k, y] = board[x + k, y]
+                state[x + k, y + 1] = 0 if self.board[x + k, y + 1] == 0 else 1
+                state[x + k, y - 1] = 0 if self.board[x + k, y - 1] == 0 else 1
                 if self.board[x + k, y] == 0:
                     stop_right = True
         return state
@@ -139,8 +152,10 @@ class Env:
 
     def make_anim(self, prefix=""):
         for t in range(len(self.board_memory)):
-            self.board_memory[t] = cv2.resize(self.board_memory[t], None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
-            self.state_memory[t] = cv2.resize(self.state_memory[t], None, fx=self.scale, fy=self.scale, interpolation=cv2.INTER_NEAREST)
+            self.board_memory[t] = cv2.resize(self.board_memory[t], None, fx=self.scale, fy=self.scale,
+                                              interpolation=cv2.INTER_NEAREST)
+            self.state_memory[t] = cv2.resize(self.state_memory[t], None, fx=self.scale, fy=self.scale,
+                                              interpolation=cv2.INTER_NEAREST)
         filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}episode-{self.episode}"))
         data = np.array(self.board_memory) * 255
         data_state = np.array(self.state_memory) * 255

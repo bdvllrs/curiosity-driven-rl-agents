@@ -7,7 +7,10 @@ from utils import config, Memory, Metrics, save_figs
 
 device = torch.device("cpu")
 if config().learning.cuda and torch.cuda.is_available():
+    print("Using cuda")
     device = torch.device("cuda")
+else:
+    print("Using CPU")
 
 env = Env()
 if config().sim.agent.type == "curious":
