@@ -6,7 +6,7 @@ import torch
 from torch.nn import functional as F
 from torch.optim import Adam
 
-from models.dqn import DQNUnit
+from models.actor_critic import Critic, Actor
 from models.icm import ICMForward, ICMFeatures, ICMInverseModel
 from utils import config
 
@@ -29,7 +29,6 @@ class Agent:
     # For RL
     gamma = 0.9
     EPS_START = 0.01
-    lr = 0.1
     update_frequency = 0.1
     update_type = "hard"
 
@@ -42,21 +41,32 @@ class Agent:
         self.EPS_START = config().learning.EPS_START
         self.EPS_END = config().learning.EPS_END
         self.EPS_DECAY = config().learning.EPS_DECAY
-        self.lr = config().learning.lr
         self.update_frequency = config().learning.update_frequency
         assert config().learning.update_type in ["hard", "soft"], "Update type is not correct."
         self.update_type = config().learning.update_type
 
         self.device = device
 
-        self.policy_net = DQNUnit().to(self.device)
-        self.target_net = DQNUnit().to(self.device)
-        self.policy_optimizer = Adam(self.policy_net.parameters(), lr=config().learning.lr)
-        self.update(self.target_net, self.policy_net)
-        self.target_net.eval()
+        self.policy_critic = Critic().to(self.device)  # Q'
+        self.target_critic = Critic().to(self.device)  # Q
 
-        self.n_iter = 0
+        self.policy_actor = Actor().to(self.device)  # mu'
+        self.target_actor = Actor().to(self.device)  # mu
+
+        self.critic_optimizer = Adam(self.policy_critic.parameters(), lr=config().learning.lr_critic)
+        self.actor_optimizer = Adam(self.policy_actor.parameters(), lr=config().learning.lr_actor)
+
+        self.update(self.target_critic, self.policy_critic)
+        self.update(self.target_actor, self.policy_actor)
+
+        self.target_critic.eval()
+        self.target_actor.eval()
+
         self.steps_done = 0
+        self.n_iter = 0
+        self.agents = None
+
+        self.current_agent_idx = None
 
     def update(self, *params):
         if self.update_type == "hard":
@@ -75,50 +85,75 @@ class Agent:
         if test:
             eps_threshold = config().testing.policy.random_action_prob
 
-        self.steps_done += 1
         with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
+            # if config.learning.gumbel_softmax:
+            #    predicted = self.policy_actor(state).detach().cpu().numpy()[0]
+            #    action = np.random.choice(self.number_actions, p=predicted)
+            # else:
             p = np.random.random()
-            state = torch.tensor(state).to(self.device).unsqueeze(dim=0).float()
-            if p > eps_threshold:
-                action_probs = self.policy_net(state).detach().cpu().numpy()
+            if test or p > eps_threshold:
+                action_probs = self.policy_actor(state).detach().cpu().numpy()
                 action = np.argmax(action_probs[0])
             else:
                 action = random.randrange(self.number_actions)
-            return action
+        self.steps_done += 1
+
+        return action
 
     def intrinsic_reward(self, prev_state, action, next_state):
         return 0
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        self.policy_optimizer.zero_grad()
-
-        action_batch = action_batch.reshape(action_batch.size(0), 1)
+        state_batch = state_batch.unsqueeze(dim=1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
+        actions = action_batch.unsqueeze(dim=1).long()
+        action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
+        action_batch.scatter_(1, actions, 1)
 
-        policy_output = self.policy_net(state_batch)  # value function for all actions size (batch, n_actions)
-        action_by_policy = policy_output.gather(1, action_batch)  # only keep the value function for the given action
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
+        self.critic_optimizer.zero_grad()
+        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
 
-        if config().learning.DDQN:
-            actions_next = self.policy_net(next_state_batch).detach().max(1)[1].unsqueeze(1)
-            Qsa_prime_targets = self.target_net(next_state_batch).gather(1, actions_next)
+        target_actions = self.target_actor(next_state_batch)
+        policy_actions = action_batch
+        if config().learning.gumbel_softmax.use:
+            policy_actions = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
 
-        else:
-            Qsa_prime_targets = self.target_net(next_state_batch).detach().max(1)[0].unsqueeze(1)
+        predicted_q = self.policy_critic(state_batch, policy_actions)  # dim (batch_size x 1)
+        target = self.target_critic(next_state_batch, target_actions)
+        target_q = reward_batch + self.gamma * target
 
-        actions_by_cal = reward_batch + (self.gamma * Qsa_prime_targets)
+        loss = F.mse_loss(predicted_q, target_q)
 
-        loss = F.mse_loss(action_by_policy, actions_by_cal)
         loss.backward()
-        for param in self.policy_net.parameters():
-            param.grad.data.clamp_(-1, 1)
-        self.policy_optimizer.step()
 
-        if not self.n_iter % self.update_frequency:
-            self.update(self.target_net, self.policy_net)
+        self.critic_optimizer.step()
+        self.n_iter += 1
+
+        if not self.n_iter % config().learning.update_frequency:
+            soft_update(self.target_critic, self.policy_critic)
+
+        # Learn actor
+        self.policy_critic.eval()
+
+        self.actor_optimizer.zero_grad()
+        predicted_action = self.policy_actor(state_batch)
+
+        actor_loss = -self.policy_critic(state_batch, predicted_action)
+        actor_loss = actor_loss.mean()
+        actor_loss.backward()
+
+        self.actor_optimizer.step()
+
+        self.policy_critic.train()
+
+        if not self.n_iter % config().learning.update_frequency:
+            soft_update(self.target_actor, self.policy_actor)
 
         self.n_iter += 1
 
-        return loss.detach().cpu().item()
+        return loss.detach().cpu().item(), actor_loss.cpu().item()
 
     def save(self, name):
         """
@@ -127,9 +162,14 @@ class Agent:
         :return: models saved
         :return:
         """
-        save_dict = {'policy': self.policy_net.state_dict(),
-                     'target_policy': self.target_net.state_dict(),
-                     'policy_optimizer': self.policy_optimizer.state_dict()}
+        save_dict = {
+            'policy_critic': self.policy_critic.state_dict(),
+            'target_critic': self.target_critic.state_dict(),
+            'policy_actor': self.policy_actor.state_dict(),
+            'target_actor': self.target_actor.state_dict(),
+            'critic_optimizer': self.critic_optimizer.state_dict(),
+            'actor_optimizer': self.actor_optimizer.state_dict()
+        }
         torch.save(save_dict, name)
 
     def load(self, name):
@@ -139,15 +179,19 @@ class Agent:
         :return: models init
         """
         params = torch.load(name)
-        self.policy_net.load_state_dict(params['policy'])
-        self.target_net.load_state_dict(params['target_policy'])
-        self.policy_optimizer.load_state_dict(params['policy_optimizer'])
+        self.policy_critic.load_state_dict(params['policy_critic'])
+        self.target_critic.load_state_dict(params['target_critic'])
+        self.policy_actor.load_state_dict(params['policy_actor'])
+        self.target_actor.load_state_dict(params['target_actor'])
+        self.critic_optimizer.load_state_dict(params['critic_optimizer'])
+        self.actor_optimizer.load_state_dict(params['actor_optimizer'])
 
 
 class CuriousAgent(Agent):
     """
     Pathak et al. Curiosity
     """
+
     def __init__(self, device):
         super(CuriousAgent, self).__init__(device)
 
@@ -164,24 +208,53 @@ class CuriousAgent(Agent):
         self.lbd = config().learning.icm.lbd
 
     def intrinsic_reward(self, prev_state, action, next_state):
-        prev_state = torch.tensor(prev_state).to(self.device).unsqueeze(dim=0).float()
-        next_state = torch.tensor(next_state).to(self.device).unsqueeze(dim=0).float()
-        action = torch.tensor(action).to(self.device).unsqueeze(dim=0).unsqueeze(dim=0)
         one_hot_actions = torch.zeros(action.size(0), 4).to(self.device)
         one_hot_actions.scatter_(1, action, 1)
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(one_hot_actions, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features).detach().cpu().item()
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        # DQN Learning
-        loss_dqn = super(CuriousAgent, self).learn(state_batch, next_state_batch, action_batch, reward_batch)
-
+        reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
         # Intrinsic reward learning
-        action_batch = action_batch.unsqueeze(dim=1)
-        one_hot_actions = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
-        one_hot_actions.scatter_(1, action_batch, 1)
+        actions = action_batch.unsqueeze(dim=1).long()
+        action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
+        action_batch.scatter_(1, actions, 1)
+        state_batch = state_batch.unsqueeze(dim=1)
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
+
+        # DQN Learning
+        self.critic_optimizer.zero_grad()
+        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
+
+        target_actions = self.target_actor(next_state_batch)
+        policy_actions = action_batch
+        if config().learning.gumbel_softmax.use:
+            policy_actions = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
+
+        predicted_q = self.policy_critic(state_batch, policy_actions)  # dim (batch_size x 1)
+        target = self.target_critic(next_state_batch, target_actions)
+        target_q = reward_batch + self.gamma * target
+
+        loss_critic = F.mse_loss(predicted_q, target_q)
+
+        loss_critic.backward()
+
+        self.critic_optimizer.step()
+        self.n_iter += 1
+
+        if not self.n_iter % config().learning.update_frequency:
+            soft_update(self.target_critic, self.policy_critic)
+
+        # Learn actor
+        self.policy_critic.eval()
+
+        self.actor_optimizer.zero_grad()
+        predicted_action = self.policy_actor(state_batch)
+
+        actor_loss = -self.policy_critic(state_batch, predicted_action)
+        actor_loss = actor_loss.mean()
 
         self.features_icm_optimizer.zero_grad()
         self.forward_icm_optimizer.zero_grad()
@@ -191,15 +264,23 @@ class CuriousAgent(Agent):
         feature_next_states = self.features_icm(next_state_batch)
 
         predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
-        predicted_feature_next_states = self.forward_icm(one_hot_actions, feature_states)
+        predicted_feature_next_states = self.forward_icm(action_batch, feature_states)
 
-        loss_predictor = F.mse_loss(predicted_actions, one_hot_actions)
+        loss_predictor = F.mse_loss(predicted_actions, action_batch)
         loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
-        loss = loss_next_state_predictor + loss_predictor
+        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * actor_loss
         loss.backward()
 
         self.features_icm_optimizer.step()
         self.forward_icm_optimizer.step()
         self.inverse_model_icm_optimizer.step()
+        self.actor_optimizer.step()
 
-        return loss.detach().cpu().item() + loss_dqn
+        self.policy_critic.train()
+
+        if not self.n_iter % config().learning.update_frequency:
+            soft_update(self.target_actor, self.policy_actor)
+
+        self.n_iter += 1
+
+        return loss_critic.detach().cpu().item(), loss.detach().cpu().item()

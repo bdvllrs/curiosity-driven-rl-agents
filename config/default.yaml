@@ -24,10 +24,15 @@ learning:
   EPS_START: 0.9 # Probability of exploration.
   EPS_END: 0.1
   EPS_DECAY: 10000
-  lr: 0.01 # Learning rate
+  lr_actor: 0.01 # Learning rate
+  lr_critic: 0.01 # Learning rate
   update_frequency: 100 # Update the target net every...
   update_type: hard # Type of update.
   tau: 0.5
+
+  gumbel_softmax:
+    use: Yes
+    tau: 0.5
 
   icm:
     eta: 0.2

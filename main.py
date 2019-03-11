@@ -51,9 +51,7 @@ for e in tqdm(range(num_episodes)):
     while not terminal:
         action = possible_actions[agent.draw_action(state, is_test)]
         # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
-        next_state, extrinsinc_reward, terminal = env.step(action)
-        intrinsic_reward = agent.intrinsic_reward(state, action_to_number[action], next_state)
-        reward = extrinsinc_reward + intrinsic_reward
+        next_state, reward, terminal = env.step(action)
         experience_replay.add(state, next_state, action_to_number[action], reward)
 
         expected_return += discount * reward
@@ -65,9 +63,9 @@ for e in tqdm(range(num_episodes)):
             state_batch, next_state_batch, action_batch, reward_batch = batch
             state_batch = torch.FloatTensor(state_batch).to(device)
             next_state_batch = torch.FloatTensor(next_state_batch).to(device)
-            action_batch = torch.LongTensor(action_batch).to(device)
+            action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
-            metrics.add_loss(agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
+            metrics.add_losses(*agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
 
     metrics.add_return(expected_return)
 
@@ -78,9 +76,9 @@ for e in tqdm(range(num_episodes)):
 
     if config().sim.output.save_figs and ((not is_test and cycle_count == train_cycle_length)
                                           or (is_test and cycle_count == test_cycle_length)):
-        train_returns, train_loss = train_metrics.get_metrics()
+        train_returns, train_loss_critic, train_loss_actor = train_metrics.get_metrics()
         test_returns, _ = test_metrics.get_metrics()
-        save_figs(train_returns, test_returns, train_loss, date + "/")
+        save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, date + "/")
         cycle_count = 0
         is_test = not is_test
 

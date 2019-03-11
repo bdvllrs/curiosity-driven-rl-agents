@@ -27,11 +27,15 @@ class ICMFeatures(nn.Module):
             if type(layer) != nn.ReLU:
                 out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
         self.conv = nn.Sequential(*conv_layers)
+        self.fc = nn.Sequential(
+                nn.Linear(out_dim[0] * out_dim[1] * 5, 128),
+                nn.ReLU()
+        )
 
     def forward(self, states):
         states = states.unsqueeze(dim=1)  # Add channel
         out = self.conv(states)
-        return out.view(states.size(0), -1)
+        return self.fc(out.view(states.size(0), -1))
 
 
 class ICMInverseModel(nn.Module):
@@ -45,7 +49,9 @@ class ICMInverseModel(nn.Module):
                 out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
         n_actions = 4
         self.fc = nn.Sequential(
-                nn.Linear(out_dim[0] * out_dim[1] * 5 * 2, 32),
+                nn.Linear(out_dim[0] * out_dim[1] * 5 * 2, 128),
+                nn.ReLU(),
+                nn.Linear(128, 32),
                 nn.ReLU(),
                 nn.Linear(32, n_actions),
                 nn.Softmax(dim=1)
@@ -67,7 +73,9 @@ class ICMForward(nn.Module):
         n_actions = 4
         feature_dim = out_dim[0] * out_dim[1] * 5
         self.fc = nn.Sequential(
-                nn.Linear(feature_dim + n_actions, 64),
+                nn.Linear(feature_dim + n_actions, 128),
+                nn.ReLU(),
+                nn.Linear(128, 64),
                 nn.ReLU(),
                 nn.Linear(64, feature_dim),
         )

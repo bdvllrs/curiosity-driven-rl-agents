@@ -16,7 +16,7 @@ def output_size_conv2d_layer(height, width, layer):
     return height_out, width_out
 
 
-def save_figs(train_returns, test_returns, train_loss, prefix=""):
+def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, prefix=""):
     tr_cycle = config().metrics.train_cycle_length
     ts_cycle = config().metrics.test_cycle_length
     filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}metrics"))
@@ -33,7 +33,9 @@ def save_figs(train_returns, test_returns, train_loss, prefix=""):
     plt.clf()
     plt.cla()
     plt.figure(1)
-    plt.plot(range(0, len(train_loss) * tr_cycle, tr_cycle), train_loss)
+    plt.plot(range(0, len(train_loss_critic) * tr_cycle, tr_cycle), train_loss_critic, label="Critic")
+    plt.plot(range(0, len(train_loss_actor) * tr_cycle, tr_cycle), train_loss_actor, label="Actor")
+    plt.legend()
     plt.xlabel("Episodes")
     plt.ylabel("DQN Training Losses")
     plt.savefig(filepath + "_losses.eps", type="eps", dpi=1000)
@@ -42,22 +44,27 @@ def save_figs(train_returns, test_returns, train_loss, prefix=""):
 class Metrics:
     def __init__(self):
         self.returns = []
-        self.loss = []
+        self.loss_critic = []
+        self.loss_actor = []
         self.returns_buffer = []
-        self.loss_buffer = []
+        self.loss_critic_buffer = []
+        self.loss_actor_buffer = []
 
     def add_return(self, expected_return):
         self.returns_buffer.append(expected_return)
 
-    def add_loss(self, loss):
-        self.loss_buffer.append(loss)
+    def add_losses(self, loss_critic, loss_actor):
+        self.loss_critic_buffer.append(loss_critic)
+        self.loss_actor_buffer.append(loss_actor)
 
     def get_metrics(self):
         if len(self.returns_buffer):
             self.returns.append(np.mean(self.returns_buffer))
             self.returns_buffer = []
-        if len(self.loss_buffer):
-            self.loss.append(np.mean(self.loss_buffer))
-            self.loss_buffer = []
+        if len(self.loss_critic_buffer):
+            self.loss_critic.append(np.mean(self.loss_critic_buffer))
+            self.loss_actor.append(np.mean(self.loss_actor_buffer))
+            self.loss_critic_buffer = []
+            self.loss_actor_buffer = []
 
-        return self.returns, self.loss
+        return self.returns, self.loss_critic, self.loss_actor
