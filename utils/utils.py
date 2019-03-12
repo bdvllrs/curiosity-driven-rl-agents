@@ -68,3 +68,15 @@ class Metrics:
             self.loss_actor_buffer = []
 
         return self.returns, self.loss_critic, self.loss_actor
+
+
+class Singleton:
+    def __init__(self, cls):
+        self.cls = cls
+        self.instance = None
+
+    def __call__(self, *args, **kwargs):
+        if self.instance is None:
+            self.instance = self.cls(*args, **kwargs)
+        return self.instance
+

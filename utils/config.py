@@ -3,7 +3,7 @@ __version__ = "1.0.5"
 
 import os
 import yaml
-
+from utils.utils import Singleton
 
 __all__ = ["config"]
 
@@ -48,17 +48,6 @@ class Config:
 
     def __getitem__(self, item):
         return self.__data[item]
-
-
-class Singleton:
-    def __init__(self, cls):
-        self.cls = cls
-        self.instance = None
-
-    def __call__(self, *args, **kwargs):
-        if self.instance is None:
-            self.instance = self.cls(*args, **kwargs)
-        return self.instance
 
 
 config = Singleton(Config)
