@@ -2,7 +2,7 @@ import os
 from math import floor
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import config
+from utils.config import config
 
 
 def output_size_conv2d_layer(height, width, layer):
@@ -68,15 +68,3 @@ class Metrics:
             self.loss_actor_buffer = []
 
         return self.returns, self.loss_critic, self.loss_actor
-
-
-class Singleton:
-    def __init__(self, cls):
-        self.cls = cls
-        self.instance = None
-
-    def __call__(self, *args, **kwargs):
-        if self.instance is None:
-            self.instance = self.cls(*args, **kwargs)
-        return self.instance
-

@@ -3,7 +3,7 @@ __version__ = "1.0.5"
 
 import os
 import yaml
-from utils.utils import Singleton
+from utils.singleton import Singleton
 
 __all__ = ["config"]
 

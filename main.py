@@ -3,7 +3,7 @@ from datetime import datetime
 import torch
 from tqdm import tqdm
 from sim import Env, Agent, CuriousAgent
-from utils import config, Memory, Metrics, save_figs
+from utils import config, Memory, Metrics, save_figs, logger
 
 device = torch.device("cpu")
 if config().learning.cuda and torch.cuda.is_available():
@@ -32,6 +32,7 @@ filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
 if config().sim.output.save_figs:
     os.mkdir(filepath)
     config().save_(filepath + "/config.yaml")
+    logger().set(file=filepath + "logs.txt")
 
 if config().learning.load_model:
     agent.load(config().learning.load_model)
@@ -82,6 +83,8 @@ for e in tqdm(range(num_episodes)):
                                           or (is_test and cycle_count == test_cycle_length)):
         train_returns, train_loss_critic, train_loss_actor = train_metrics.get_metrics()
         test_returns, _, _ = test_metrics.get_metrics()
+        logger().log(f"Training return = {train_returns}")
+        logger().log(f"Testing return = {test_returns}")
         save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, date + "/")
         cycle_count = 0
         is_test = not is_test
