@@ -32,7 +32,7 @@ filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
 if config().sim.output.save_figs:
     os.mkdir(filepath)
     config().save_(filepath + "/config.yaml")
-    logger().set(file=filepath + "logs.txt")
+    logger().set(file=filepath + "/logs.txt")
 
 if config().learning.load_model:
     agent.load(config().learning.load_model)
