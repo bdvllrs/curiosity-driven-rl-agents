@@ -31,6 +31,7 @@ date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
 if config().sim.output.save_figs:
     os.mkdir(filepath)
+    config().save_(filepath + "/config.yaml")
 
 is_test = False
 cycle_count = 1
