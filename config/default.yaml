@@ -16,6 +16,8 @@ sim:  # simulations
 
 learning:
   cuda: Yes
+  save_models: Yes
+  load_model: No
   batch_size: 64
   num_episodes: 1000 # Number of episodes of learning
 

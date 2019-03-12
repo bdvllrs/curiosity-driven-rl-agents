@@ -33,6 +33,9 @@ if config().sim.output.save_figs:
     os.mkdir(filepath)
     config().save_(filepath + "/config.yaml")
 
+if config().learning.load_model:
+    agent.load(config().learning.load_model)
+
 is_test = False
 cycle_count = 1
 train_cycle_length = config().metrics.train_cycle_length
@@ -78,7 +81,7 @@ for e in tqdm(range(num_episodes)):
     if config().sim.output.save_figs and ((not is_test and cycle_count == train_cycle_length)
                                           or (is_test and cycle_count == test_cycle_length)):
         train_returns, train_loss_critic, train_loss_actor = train_metrics.get_metrics()
-        test_returns, _ = test_metrics.get_metrics()
+        test_returns, _, _ = test_metrics.get_metrics()
         save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, date + "/")
         cycle_count = 0
         is_test = not is_test
@@ -89,3 +92,6 @@ for e in tqdm(range(num_episodes)):
         train_count += 1
 
     cycle_count += 1
+
+if config().learning.save_models:
+    agent.save(filepath + "/models.pth")
