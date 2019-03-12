@@ -83,8 +83,10 @@ for e in tqdm(range(num_episodes)):
                                           or (is_test and cycle_count == test_cycle_length)):
         train_returns, train_loss_critic, train_loss_actor = train_metrics.get_metrics()
         test_returns, _, _ = test_metrics.get_metrics()
-        logger().log(f"Training return = {train_returns}")
-        logger().log(f"Testing return = {test_returns}")
+        if not is_test:
+            logger().log(f"Training return = {train_returns[-1]}")
+        else:
+            logger().log(f"Testing return = {test_returns[-1]}")
         save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, date + "/")
         cycle_count = 0
         is_test = not is_test
