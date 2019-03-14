@@ -4,7 +4,7 @@ import numpy as np
 import imageio
 import cv2
 import matplotlib.pyplot as plt
-from utils import maze, config
+from utils import maze, config, recursive_walk
 
 colors = {
     "coin": (0.9, 0.8, 0.25),
@@ -54,7 +54,7 @@ class Env:
     def _add_state(self, board):
         self.state_memory.append(self._board_to_image(board))
 
-    def _get_state(self, board):
+    def _get_state_hard(self, board):
         x, y = self.agent_position
         stop_top = False
         stop_bottom = False
@@ -88,6 +88,22 @@ class Env:
                 if self.board[x + k, y] == 0:
                     stop_right = True
         return state
+
+    def _get_state_progressive(self, board):
+        x, y = self.agent_position
+        state = np.zeros_like(board)
+        state[x, y] = board[x, y]
+        depth_of_field = config().sim.env.state.depth_of_field
+        positions = [self.agent_position]
+        recursive_walk(positions, board, depth_of_field)
+        for (x, y) in positions:
+            state[x, y] = board[x, y]
+        return state
+
+    def _get_state(self, board):
+        if config().sim.env.state.type == "progressive":
+            return self._get_state_progressive(board)
+        return self._get_state_hard(board)
 
     def _get_possible_actions(self):
         x, y = self.agent_position

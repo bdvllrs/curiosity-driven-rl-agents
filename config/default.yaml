@@ -6,6 +6,10 @@ sim:  # simulations
     size: 20  # Size of the board
     number_coins: 60  # Number of coins on the board
     max_length: 100  # Maximum number of iterations before terminal state
+    state:
+      type: progressive  # in [progressive, hard]
+      depth_of_field: 5  # only if progressive state
+
   output:
     path: path/to/output/videos
     save_figs: Yes

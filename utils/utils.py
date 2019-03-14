@@ -49,6 +49,24 @@ def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, 
     plt.savefig(filepath + "_losses.eps", type="eps", dpi=1000)
 
 
+def recursive_walk(positions, board, max_steps):
+    x, y = positions[-1]
+    if max_steps == 0:
+        return
+    if board[x + 1, y] != 0:
+        positions.append((x + 1, y))
+        recursive_walk(positions, board, max_steps - 1)
+    if board[x - 1, y] != 0:
+        positions.append((x - 1, y))
+        recursive_walk(positions, board, max_steps - 1)
+    if board[x, y + 1] != 0:
+        positions.append((x, y + 1))
+        recursive_walk(positions, board, max_steps - 1)
+    if board[x, y - 1] != 0:
+        positions.append((x, y - 1))
+        recursive_walk(positions, board, max_steps - 1)
+
+
 class Metrics:
     def __init__(self):
         self.returns = []
