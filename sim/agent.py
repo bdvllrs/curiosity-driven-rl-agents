@@ -33,7 +33,6 @@ class Agent:
     id = 0
     # For RL
     gamma = 0.9
-    eps_start = 0.01
     update_frequency = 0.1
 
     def __init__(self, device):
@@ -42,9 +41,6 @@ class Agent:
 
         # For RL
         self.gamma = config().learning.gamma
-        self.eps_start = config().learning.exploration.eps_start
-        self.eps_end = config().learning.exploration.eps_end
-        self.eps_decay = config().learning.exploration.eps_decay
         self.update_frequency = config().learning.update_frequency
         self.device = device
 
@@ -69,29 +65,16 @@ class Agent:
 
         self.current_agent_idx = None
 
-    def draw_action(self, state, test=False):
+    def draw_action(self, state):
         """
         Args:
             state:
             test: If True, use only exploitation policy
         """
-        eps_threshold = (self.eps_end + (self.eps_start - self.eps_end) *
-                         math.exp(-1. * self.steps_done / self.eps_decay))
-        if test:
-            eps_threshold = config().testing.policy.random_action_prob
-
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
-            if config().learning.exploration.gumbel_softmax:
-                predicted = self.actor(state).detach().cpu().numpy()[0]
-                action = np.random.choice(self.number_actions, p=predicted)
-            else:
-                p = np.random.random()
-                if test or p > eps_threshold:
-                    action_probs = self.actor(state).detach().cpu().numpy()
-                    action = np.argmax(action_probs[0])
-                else:
-                    action = random.randrange(self.number_actions)
+            action_probs = self.actor(state).detach().cpu().numpy()
+            action = np.argmax(action_probs[0])
         self.steps_done += 1
 
         return action

@@ -28,12 +28,6 @@ learning:
   DDQN: Yes
   gamma: 0.999 # Discount factor.
 
-  exploration:
-    gumbel_softmax: Yes
-    eps_start: 0.9 # Probability of exploration.
-    eps_end: 0.1
-    eps_decay: 1000000
-
   lr_actor: 0.01 # Learning rate
   lr_critic: 0.01 # Learning rate
   update_frequency: 100 # Update the target net every...

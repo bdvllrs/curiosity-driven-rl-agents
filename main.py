@@ -54,7 +54,7 @@ for e in tqdm(range(num_episodes)):
 
     # Do an episode
     while not terminal:
-        action = possible_actions[agent.draw_action(state, is_test)]
+        action = possible_actions[agent.draw_action(state)]
         # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
         next_state, reward, terminal = env.step(action)
         experience_replay.add(state, next_state, action_to_number[action], reward)

@@ -4,7 +4,7 @@ import numpy as np
 import imageio
 import cv2
 import matplotlib.pyplot as plt
-from utils import maze, config, recursive_walk
+from utils import maze, config
 
 colors = {
     "coin": (0.9, 0.8, 0.25),
@@ -95,9 +95,7 @@ class Env:
         state[x, y] = board[x, y]
         depth_of_field = config().sim.env.state.depth_of_field
         positions = [self.agent_position]
-        recursive_walk(positions, board, depth_of_field)
-        for (x, y) in positions:
-            state[x, y] = board[x, y]
+        recursive_walk(positions, state, board, depth_of_field)
         return state
 
     def _get_state(self, board):
@@ -186,3 +184,25 @@ class Env:
         plt.imshow(state)
         plt.xticks([]), plt.yticks([])
         plt.show()
+
+
+def recursive_walk(positions, state, board, max_steps):
+    x, y = positions[-1]
+    if max_steps == 0:
+        return
+    if board[x + 1, y] != 0 and (x + 1, y) not in positions:
+        positions.append((x + 1, y))
+        state[x + 1, y] = board[x + 1, y]
+        recursive_walk(positions, state, board, max_steps - 1)
+    if board[x - 1, y] != 0 and (x - 1, y) not in positions:
+        positions.append((x - 1, y))
+        state[x - 1, y] = board[x - 1, y]
+        recursive_walk(positions, state, board, max_steps - 1)
+    if board[x, y + 1] != 0 and (x, y + 1) not in positions:
+        positions.append((x, y + 1))
+        state[x, y + 1] = board[x, y + 1]
+        recursive_walk(positions, state, board, max_steps - 1)
+    if board[x, y - 1] != 0 and (x, y - 1) not in positions:
+        positions.append((x, y - 1))
+        state[x, y - 1] = board[x, y - 1]
+        recursive_walk(positions, state, board, max_steps - 1)
