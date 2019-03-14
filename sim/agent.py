@@ -25,12 +25,16 @@ def soft_update(target, policy):
 
 
 class Agent:
+    """
+    OpenAI DDPG Actor-Critic
+    https://arxiv.org/pdf/1509.02971.pdf
+    """
+
     id = 0
     # For RL
     gamma = 0.9
-    EPS_START = 0.01
+    eps_start = 0.01
     update_frequency = 0.1
-    update_type = "hard"
 
     def __init__(self, device):
         self.memory = None
@@ -38,29 +42,26 @@ class Agent:
 
         # For RL
         self.gamma = config().learning.gamma
-        self.EPS_START = config().learning.EPS_START
-        self.EPS_END = config().learning.EPS_END
-        self.EPS_DECAY = config().learning.EPS_DECAY
+        self.eps_start = config().learning.exploration.eps_start
+        self.eps_end = config().learning.exploration.eps_end
+        self.eps_decay = config().learning.exploration.eps_decay
         self.update_frequency = config().learning.update_frequency
-        assert config().learning.update_type in ["hard", "soft"], "Update type is not correct."
-        self.update_type = config().learning.update_type
-
         self.device = device
 
-        self.policy_critic = Critic().to(self.device)  # Q'
-        self.target_critic = Critic().to(self.device)  # Q
+        self.actor = Actor().to(self.device)
+        self.critic = Critic().to(self.device)
 
-        self.policy_actor = Actor().to(self.device)  # mu'
-        self.target_actor = Actor().to(self.device)  # mu
+        self.actor_target = Actor().to(self.device)
+        self.critic_target = Critic().to(self.device)
+        hard_update(self.actor_target, self.actor)
+        hard_update(self.critic_target, self.critic)
+        self.actor_target.eval()
+        self.critic_target.eval()
 
-        self.critic_optimizer = Adam(self.policy_critic.parameters(), lr=config().learning.lr_critic)
-        self.actor_optimizer = Adam(self.policy_actor.parameters(), lr=config().learning.lr_actor)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=config().learning.lr_critic)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=config().learning.lr_actor)
 
-        self.update(self.target_critic, self.policy_critic)
-        self.update(self.target_actor, self.policy_actor)
-
-        self.target_critic.eval()
-        self.target_actor.eval()
+        self.critic_criterion = torch.nn.MSELoss()
 
         self.steps_done = 0
         self.n_iter = 0
@@ -68,35 +69,29 @@ class Agent:
 
         self.current_agent_idx = None
 
-    def update(self, *params):
-        if self.update_type == "hard":
-            hard_update(*params)
-        elif self.update_type == "soft":
-            soft_update(*params)
-
     def draw_action(self, state, test=False):
         """
         Args:
             state:
             test: If True, use only exploitation policy
         """
-        eps_threshold = (self.EPS_END + (self.EPS_START - self.EPS_END) *
-                         math.exp(-1. * self.steps_done / self.EPS_DECAY))
+        eps_threshold = (self.eps_end + (self.eps_start - self.eps_end) *
+                         math.exp(-1. * self.steps_done / self.eps_decay))
         if test:
             eps_threshold = config().testing.policy.random_action_prob
 
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
-            # if config.learning.gumbel_softmax:
-            #    predicted = self.policy_actor(state).detach().cpu().numpy()[0]
-            #    action = np.random.choice(self.number_actions, p=predicted)
-            # else:
-            p = np.random.random()
-            if test or p > eps_threshold:
-                action_probs = self.policy_actor(state).detach().cpu().numpy()
-                action = np.argmax(action_probs[0])
+            if config().learning.exploration.gumbel_softmax:
+                predicted = self.actor(state).detach().cpu().numpy()[0]
+                action = np.random.choice(self.number_actions, p=predicted)
             else:
-                action = random.randrange(self.number_actions)
+                p = np.random.random()
+                if test or p > eps_threshold:
+                    action_probs = self.actor(state).detach().cpu().numpy()
+                    action = np.argmax(action_probs[0])
+                else:
+                    action = random.randrange(self.number_actions)
         self.steps_done += 1
 
         return action
@@ -104,56 +99,55 @@ class Agent:
     def intrinsic_reward(self, prev_state, action, next_state):
         return 0
 
+    def get_losses(self, state_batch, next_state_batch, action_batch, reward_batch):
+        if config().learning.gumbel_softmax.use:
+            action_batch = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
+
+        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
+
+        predicted_next_actions = self.actor_target(next_state_batch)
+
+        y = reward_batch + self.gamma * self.critic_target(next_state_batch, predicted_next_actions)
+
+        loss_critic = self.critic_criterion(y, self.critic(state_batch, action_batch))
+
+        actor_loss = -self.critic(state_batch, self.actor(state_batch))
+        actor_loss = actor_loss.mean()
+
+        return loss_critic, actor_loss
+
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         state_batch = state_batch.unsqueeze(dim=1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
         actions = action_batch.unsqueeze(dim=1).long()
         action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
         action_batch.scatter_(1, actions, 1)
-
         next_state_batch = next_state_batch.unsqueeze(dim=1)
+
+        loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
+
+        # Critic backprop
         self.critic_optimizer.zero_grad()
-        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
-
-        target_actions = self.target_actor(next_state_batch)
-        policy_actions = action_batch
-        if config().learning.gumbel_softmax.use:
-            policy_actions = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
-
-        predicted_q = self.policy_critic(state_batch, policy_actions)  # dim (batch_size x 1)
-        target = self.target_critic(next_state_batch, target_actions)
-        target_q = reward_batch + self.gamma * target
-
-        loss = F.mse_loss(predicted_q, target_q)
-
-        loss.backward()
-
+        loss_critic.backward()
         self.critic_optimizer.step()
-        self.n_iter += 1
 
-        if not self.n_iter % config().learning.update_frequency:
-            soft_update(self.target_critic, self.policy_critic)
-
-        # Learn actor
-        self.policy_critic.eval()
-
+        # Actor backprop
         self.actor_optimizer.zero_grad()
-        predicted_action = self.policy_actor(state_batch)
-
-        actor_loss = -self.policy_critic(state_batch, predicted_action)
-        actor_loss = actor_loss.mean()
+        self.critic.eval()
         actor_loss.backward()
-
         self.actor_optimizer.step()
+        self.critic.train()
 
-        self.policy_critic.train()
+        self.update()
 
+        return loss_critic.detach().cpu().item(), actor_loss.cpu().item()
+
+    def update(self):
         if not self.n_iter % config().learning.update_frequency:
-            soft_update(self.target_actor, self.policy_actor)
+            soft_update(self.critic_target, self.critic)
+            soft_update(self.actor_target, self.actor)
 
         self.n_iter += 1
-
-        return loss.detach().cpu().item(), actor_loss.cpu().item()
 
     def save(self, name):
         """
@@ -163,10 +157,10 @@ class Agent:
         :return:
         """
         save_dict = {
-            'policy_critic': self.policy_critic.state_dict(),
-            'target_critic': self.target_critic.state_dict(),
-            'policy_actor': self.policy_actor.state_dict(),
-            'target_actor': self.target_actor.state_dict(),
+            'critic': self.critic.state_dict(),
+            'critic_target': self.critic_target.state_dict(),
+            'actor': self.actor.state_dict(),
+            'actor_target': self.actor_target.state_dict(),
             'critic_optimizer': self.critic_optimizer.state_dict(),
             'actor_optimizer': self.actor_optimizer.state_dict()
         }
@@ -179,10 +173,10 @@ class Agent:
         :return: models init
         """
         params = torch.load(name)
-        self.policy_critic.load_state_dict(params['policy_critic'])
-        self.target_critic.load_state_dict(params['target_critic'])
-        self.policy_actor.load_state_dict(params['policy_actor'])
-        self.target_actor.load_state_dict(params['target_actor'])
+        self.critic.load_state_dict(params['critic'])
+        self.critic_target.load_state_dict(params['critic_target'])
+        self.actor.load_state_dict(params['actor'])
+        self.actor_target.load_state_dict(params['actor_target'])
         self.critic_optimizer.load_state_dict(params['critic_optimizer'])
         self.actor_optimizer.load_state_dict(params['actor_optimizer'])
 
@@ -208,11 +202,9 @@ class CuriousAgent(Agent):
         self.lbd = config().learning.icm.lbd
 
     def intrinsic_reward(self, prev_state, action, next_state):
-        one_hot_actions = torch.zeros(action.size(0), 4).to(self.device)
-        one_hot_actions.scatter_(1, action, 1)
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
-        predicted_features = self.forward_icm(one_hot_actions, prev_features)
+        predicted_features = self.forward_icm(action, prev_features)
         return self.eta / 2 * F.mse_loss(next_features, predicted_features)
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
@@ -224,38 +216,17 @@ class CuriousAgent(Agent):
         state_batch = state_batch.unsqueeze(dim=1)
         next_state_batch = next_state_batch.unsqueeze(dim=1)
 
-        # DQN Learning
+        loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
+
+        # Critic backprop
         self.critic_optimizer.zero_grad()
-        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
-
-        target_actions = self.target_actor(next_state_batch)
-        policy_actions = action_batch
-        if config().learning.gumbel_softmax.use:
-            policy_actions = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
-
-        predicted_q = self.policy_critic(state_batch, policy_actions)  # dim (batch_size x 1)
-        target = self.target_critic(next_state_batch, target_actions)
-        target_q = reward_batch + self.gamma * target
-
-        loss_critic = F.mse_loss(predicted_q, target_q)
-
         loss_critic.backward()
-
         self.critic_optimizer.step()
-        self.n_iter += 1
-
-        if not self.n_iter % config().learning.update_frequency:
-            soft_update(self.target_critic, self.policy_critic)
-
-        # Learn actor
-        self.policy_critic.eval()
 
         self.actor_optimizer.zero_grad()
-        predicted_action = self.policy_actor(state_batch)
+        self.critic.eval()
 
-        actor_loss = -self.policy_critic(state_batch, predicted_action)
-        actor_loss = actor_loss.mean()
-
+        # Learning ICM
         self.features_icm_optimizer.zero_grad()
         self.forward_icm_optimizer.zero_grad()
         self.inverse_model_icm_optimizer.zero_grad()
@@ -275,12 +246,8 @@ class CuriousAgent(Agent):
         self.forward_icm_optimizer.step()
         self.inverse_model_icm_optimizer.step()
         self.actor_optimizer.step()
+        self.critic.train()
 
-        self.policy_critic.train()
-
-        if not self.n_iter % config().learning.update_frequency:
-            soft_update(self.target_actor, self.policy_actor)
-
-        self.n_iter += 1
+        self.update()
 
         return loss_critic.detach().cpu().item(), loss.detach().cpu().item()

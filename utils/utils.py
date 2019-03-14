@@ -1,4 +1,5 @@
 import os
+from torch.nn import ReLU
 from math import floor
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,6 +15,13 @@ def output_size_conv2d_layer(height, width, layer):
     height_out = floor((height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1)
     width_out = floor((width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1)
     return height_out, width_out
+
+
+def output_size_conv2d(out_dim, layers):
+    for layer in layers:
+        if type(layer) != ReLU:
+            out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
+    return out_dim
 
 
 def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, prefix=""):

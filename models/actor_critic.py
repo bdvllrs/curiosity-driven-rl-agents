@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import config, output_size_conv2d_layer
+from utils import config, output_size_conv2d
 
 conv_layers = [
     nn.Conv2d(1, 5, 3),
@@ -17,10 +17,7 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
 
         board_size = config().sim.env.size
-        out_dim = (board_size, board_size)
-        for layer in conv_layers:
-            if type(layer) != nn.ReLU:
-                out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
+        out_dim = output_size_conv2d((board_size, board_size), conv_layers)
         self.conv = nn.Sequential(*conv_layers)
         self.fc = nn.Sequential(
                 nn.Linear(out_dim[0] * out_dim[1] * 5 + 4, 128),
@@ -48,12 +45,8 @@ class Critic(nn.Module):
 class Actor(nn.Module):
     def __init__(self):
         super(Actor, self).__init__()
-
         board_size = config().sim.env.size
-        out_dim = (board_size, board_size)
-        for layer in conv_layers:
-            if type(layer) != nn.ReLU:
-                out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
+        out_dim = output_size_conv2d((board_size, board_size), conv_layers)
         self.conv = nn.Sequential(*conv_layers)
         self.fc = nn.Sequential(
                 nn.Linear(out_dim[0] * out_dim[1] * 5, 128),
