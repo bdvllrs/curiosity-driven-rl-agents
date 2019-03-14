@@ -16,7 +16,7 @@ sim:  # simulations
     save_every: 100  # Save results every 100 episodes
 
   agent:
-    type: curious  # in ["default", "curious"]
+    type: curious  # in ["dqn", "default", "curious"]
 
 learning:
   cuda: Yes
@@ -25,10 +25,13 @@ learning:
   batch_size: 64
   num_episodes: 1000 # Number of episodes of learning
 
-  DDQN: Yes
   gamma: 0.999 # Discount factor.
 
-  lr_actor: 0.01 # Learning rate
+  eps_start: 0.8
+  eps_end: 0.1
+  eps_decay: 1000
+
+  lr_actor: 0.01 # Learning rate for the actor, or dqn
   lr_critic: 0.01 # Learning rate
   update_frequency: 100 # Update the target net every...
   tau: 0.5
