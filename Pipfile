@@ -7,11 +7,12 @@ verify_ssl = true
 
 [packages]
 tqdm = "*"
-torch = "*"
+torch = "==1.0.0"
 matplotlib = "*"
 numpy = "*"
 imageio = "*"
 opencv-python = "*"
+pyyaml = "*"
 
 [requires]
 python_version = "3.7"

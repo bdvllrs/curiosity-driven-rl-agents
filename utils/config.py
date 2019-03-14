@@ -24,11 +24,11 @@ class Config:
         if path is not None and cfg is None:
             self.__path = os.path.abspath(os.path.join(os.curdir, path))
             with open(os.path.join(self.__path, "default.yaml"), "rb") as default_config:
-                self.__data.update(yaml.load(default_config))
+                self.__data.update(yaml.load(default_config, Loader=yaml.FullLoader))
             for cfg in sorted(os.listdir(self.__path)):
                 if cfg != "default.yaml" and cfg[-4:] in ["yaml", "yml"]:
                     with open(os.path.join(self.__path, cfg), "rb") as config_file:
-                        self.__data = update_config(self.__data, yaml.load(config_file))
+                        self.__data = update_config(self.__data, yaml.load(config_file, Loader=yaml.FullLoader))
 
     def set_(self, key, value):
         self.__data[key] = value
