@@ -102,40 +102,40 @@ class Env:
 
     def _get_state_simple(self, board):
         x, y = self.agent_position
+        stop_right = False
+        stop_left = False
         stop_top = False
         stop_bottom = False
-        stop_left = False
-        stop_right = False
         state = np.zeros(4)
         for k in range(1, self.size):
-            if not stop_top:
+            if not stop_right:
                 if board[x, y + k] == 0.3:
                     state[0] += 1
                 if self.board[x, y + k] == 0:
                     if k == 1:  # If direct wall, -1 state, otherwise just 0, but we can still go in this direction.
                         state[0] = -1
-                    stop_top = True
-            if not stop_bottom:
+                    stop_right = True
+            if not stop_left:
                 if board[x, y - k] == 0.3:
                     state[1] += 1
                 if self.board[x, y - k] == 0:
                     if k == 1:
                         state[1] = -1
-                    stop_bottom = True
-            if not stop_left:
+                    stop_left = True
+            if not stop_top:
                 if board[x - k, y] == 0.3:
                     state[2] += 1
                 if self.board[x - k, y] == 0:
                     if k == 1:
                         state[2] = -1
-                    stop_left = True
-            if not stop_right:
+                    stop_top = True
+            if not stop_bottom:
                 if board[x + k, y] == 0.3:
                     state[3] += 1
                 if self.board[x + k, y] == 0:
                     if k == 1:
                         state[3] = -1
-                    stop_right = True
+                    stop_bottom = True
         return state
 
     def _get_state(self, board):

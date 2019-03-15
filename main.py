@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import random
 import torch
 from tqdm import tqdm
 from sim import Env, ACAgent, CuriousACAgent, DQNAgent, CuriousDQNAgent
@@ -64,9 +65,10 @@ for e in tqdm(range(num_episodes)):
 
     # Do an episode
     while not terminal:
-        action = possible_actions[agent.draw_action(state)]
-        # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
+        # action = possible_actions[agent.draw_action(state)]
+        action = random.sample(["top", "bottom", "right", "left"], 1)[0]
         next_state, reward, terminal = env.step(action)
+        # env.plot()
         experience_replay.add(state, next_state, action_to_number[action], reward)
 
         expected_return += discount * reward
@@ -81,6 +83,8 @@ for e in tqdm(range(num_episodes)):
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
             metrics.add_losses(*agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
+
+        state = next_state
 
     metrics.add_return(expected_return)
 
