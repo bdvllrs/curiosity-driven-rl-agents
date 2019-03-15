@@ -6,26 +6,13 @@ import torch
 from torch.nn import functional as F
 from torch.optim import Adam
 
-from models.actor_critic import Critic, Actor
-from models.dqn import DQNUnit
-from models.icm import ICMForward, ICMFeatures, ICMInverseModel
 from utils import config
+from .models.actor_critic import Critic, Actor
+from .models.dqn import DQNUnit
+from .utils import hard_update, soft_update
 
 
-def hard_update(target, policy):
-    """
-    Copy network parameters from source to target
-    """
-    target.load_state_dict(policy.state_dict())
-
-
-def soft_update(target, policy):
-    tau = config().learning.tau
-    for target_param, param in zip(target.parameters(), policy.parameters()):
-        target_param.data.copy_(target_param.data * tau + param.data * (1. - tau))
-
-
-class Agent:
+class ACAgent:
     """
     OpenAI DDPG Actor-Critic
     https://arxiv.org/pdf/1509.02971.pdf
@@ -164,8 +151,7 @@ class Agent:
         self.actor_optimizer.load_state_dict(params['actor_optimizer'])
 
 
-class AgentDQN:
-    id = 0
+class DQNAgent:
     # For RL
     gamma = 0.9
     eps_start = 0.01
@@ -209,7 +195,7 @@ class AgentDQN:
         self.steps_done += 1
         with torch.no_grad():
             p = np.random.random()
-            state = torch.tensor(state).to(self.device).unsqueeze(dim=0).float()
+            state = torch.tensor([state]).to(self.device).unsqueeze(dim=0).float()
             if p > eps_threshold:
                 action_probs = self.policy_net(state).detach().cpu().numpy()
                 action = np.argmax(action_probs[0])
@@ -225,6 +211,8 @@ class AgentDQN:
 
         action_batch = action_batch.reshape(action_batch.size(0), 1).long()
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
+        state_batch = state_batch.unsqueeze(dim=1)
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
 
         policy_output = self.policy_net(state_batch)  # value function for all actions size (batch, n_actions)
         action_by_policy = policy_output.gather(1, action_batch)  # only keep the value function for the given action
@@ -270,75 +258,3 @@ class AgentDQN:
         self.policy_net.load_state_dict(params['policy'])
         self.target_net.load_state_dict(params['target_policy'])
         self.policy_optimizer.load_state_dict(params['policy_optimizer'])
-
-
-class CuriousAgent(Agent):
-    """
-    Pathak et al. Curiosity
-    """
-
-    def __init__(self, device):
-        super(CuriousAgent, self).__init__(device)
-
-        self.features_icm = ICMFeatures().to(self.device)
-        self.forward_icm = ICMForward().to(self.device)
-        self.inverse_model_icm = ICMInverseModel().to(self.device)
-        self.features_icm_optimizer = Adam(self.features_icm.parameters(), lr=config().learning.icm.features.lr)
-        self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
-        self.inverse_model_icm_optimizer = Adam(self.inverse_model_icm.parameters(),
-                                                lr=config().learning.icm.inverse_model.lr)
-
-        self.eta = config().learning.icm.eta
-        self.beta = config().learning.icm.beta
-        self.lbd = config().learning.icm.lbd
-
-    def intrinsic_reward(self, prev_state, action, next_state):
-        prev_features = self.features_icm(prev_state)
-        next_features = self.features_icm(next_state)
-        predicted_features = self.forward_icm(action, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
-
-    def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
-        # Intrinsic reward learning
-        actions = action_batch.unsqueeze(dim=1).long()
-        action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
-        action_batch.scatter_(1, actions, 1)
-        state_batch = state_batch.unsqueeze(dim=1)
-        next_state_batch = next_state_batch.unsqueeze(dim=1)
-
-        loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
-
-        # Critic backprop
-        self.critic_optimizer.zero_grad()
-        loss_critic.backward()
-        self.critic_optimizer.step()
-
-        self.actor_optimizer.zero_grad()
-        self.critic.eval()
-
-        # Learning ICM
-        self.features_icm_optimizer.zero_grad()
-        self.forward_icm_optimizer.zero_grad()
-        self.inverse_model_icm_optimizer.zero_grad()
-
-        feature_states = self.features_icm(state_batch)
-        feature_next_states = self.features_icm(next_state_batch)
-
-        predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
-        predicted_feature_next_states = self.forward_icm(action_batch, feature_states)
-
-        loss_predictor = F.mse_loss(predicted_actions, action_batch)
-        loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
-        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * actor_loss
-        loss.backward()
-
-        self.features_icm_optimizer.step()
-        self.forward_icm_optimizer.step()
-        self.inverse_model_icm_optimizer.step()
-        self.actor_optimizer.step()
-        self.critic.train()
-
-        self.update()
-
-        return loss_critic.detach().cpu().item(), loss.detach().cpu().item()

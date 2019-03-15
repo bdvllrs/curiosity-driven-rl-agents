@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 import torch
 from tqdm import tqdm
-from sim import Env, Agent, CuriousAgent, AgentDQN
+from sim import Env, ACAgent, CuriousACAgent, DQNAgent, CuriousDQNAgent
 from utils import config, Memory, Metrics, save_figs, logger
 
 device = torch.device("cpu")
@@ -13,15 +13,20 @@ else:
     print("Using CPU")
 
 env = Env()
-if config().sim.agent.type == "curious":
-    print("Using Curious Agent")
-    agent = CuriousAgent(device)
-elif config().sim.agent.type == "dqn":
+agent_type = config().sim.agent.type
+agent_curious = config().sim.agent.curious
+if agent_type == "AC" and agent_curious:
+    print("Using Curious AC Agent")
+    agent = CuriousACAgent(device)
+elif agent_type == "dqn" and not agent_curious:
     print("Using DQN Agent")
-    agent = AgentDQN(device)
-else:
+    agent = DQNAgent(device)
+elif agent_type == "AC" and not agent_curious:
     print("Using Actor-Critic Agent")
-    agent = Agent(device)
+    agent = ACAgent(device)
+else:
+    print("Using Curious DQN Agent")
+    agent = CuriousDQNAgent(device)
 experience_replay = Memory(config().experience_replay.size)
 train_metrics = Metrics()
 test_metrics = Metrics()

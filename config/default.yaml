@@ -16,7 +16,8 @@ sim:  # simulations
     save_every: 100  # Save results every 100 episodes
 
   agent:
-    type: curious  # in ["dqn", "default", "curious"]
+    type: dqn  # in ["dqn", "AC"]
+    curious: Yes
 
 learning:
   cuda: Yes
