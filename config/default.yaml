@@ -8,7 +8,7 @@ sim:  # simulations
     max_length: 100  # Maximum number of iterations before terminal state
     state:
       type: progressive  # in [progressive, hard, simple] -- simple is 4 numbers giving the number of coins in the 4 directions
-      depth_of_field: 5  # only if progressive state
+      depth_of_field: 5  # only if progressive state. Size of the viewing radius
 
   output:
     path: path/to/output/videos
@@ -16,8 +16,8 @@ sim:  # simulations
     save_every: 100  # Save results every 100 episodes
 
   agent:
-    type: dqn  # in ["dqn", "AC"]
-    curious: Yes
+    type: dqn  # in ["dqn", "AC"] DQN or Actor-Critic
+    curious: Yes  # Use ICM Module?
 
 learning:
   cuda: Yes
@@ -26,8 +26,9 @@ learning:
   batch_size: 64
   num_episodes: 1000 # Number of episodes of learning
 
-  gamma: 0.999 # Discount factor.
+  gamma: 0.9 # Discount factor.
 
+  # If DQN without curiosity
   eps_start: 0.8
   eps_end: 0.1
   eps_decay: 1000
@@ -35,18 +36,18 @@ learning:
   lr_actor: 0.01 # Learning rate for the actor, or dqn
   lr_critic: 0.01 # Learning rate
   update_frequency: 100 # Update the target net every...
-  tau: 0.5
+  tau: 0.5  # When updating the target nets do tau * target + (1 - tau) * current
 
-  gumbel_softmax:
+  gumbel_softmax:  # For the actor critic differentiable argmax
     use: Yes
     tau: 0.5
 
-  icm:
+  icm:  # To learn the ICM Module.
     eta: 0.2
     beta: 0.2
     lbd: 0.1
     features:
-      dim: 128
+      dim: 128  # Dimension of the feature space
       lr: 0.001
     forward_model:
       lr: 0.001
@@ -55,7 +56,7 @@ learning:
 
 testing:
   policy:
-    random_action_prob: 0.1
+    random_action_prob: 0.1  # When testing, probability of choosing a random action
 
 experience_replay:
   size: 10000  # Size of the experience replay buffer
