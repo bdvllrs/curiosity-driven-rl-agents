@@ -18,13 +18,13 @@ class ACAgent:
     https://arxiv.org/pdf/1509.02971.pdf
     """
 
-    # For RL
-    gamma = 0.9
-    update_frequency = 0.1
-
     def __init__(self, device):
         self.memory = None
         self.number_actions = 4
+
+        self.eps_start = config().learning.eps_start
+        self.eps_end = config().learning.eps_end
+        self.eps_decay = config().learning.eps_decay
 
         # For RL
         self.gamma = config().learning.gamma
@@ -52,16 +52,25 @@ class ACAgent:
 
         self.current_agent_idx = None
 
-    def draw_action(self, state):
+    def draw_action(self, state, test=False):
         """
         Args:
             state:
             test: If True, use only exploitation policy
         """
+        eps_threshold = (self.eps_end + (self.eps_start - self.eps_end) *
+                         math.exp(-1. * self.steps_done / self.eps_decay))
+        if test:
+            eps_threshold = config().testing.policy.random_action_prob
+
         with torch.no_grad():
+            p = np.random.random()
             state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
-            action_probs = self.actor(state).detach().cpu().numpy()
-            action = np.argmax(action_probs[0])
+            if p > eps_threshold:
+                action_probs = self.actor(state).detach().cpu().numpy()
+                action = np.argmax(action_probs[0])
+            else:
+                action = random.randrange(self.number_actions)
         self.steps_done += 1
 
         return action
@@ -152,12 +161,6 @@ class ACAgent:
 
 
 class DQNAgent:
-    # For RL
-    gamma = 0.9
-    eps_start = 0.01
-    lr = 0.1
-    update_frequency = 0.1
-
     def __init__(self, device):
         self.memory = None
         self.number_actions = 4

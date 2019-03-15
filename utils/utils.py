@@ -48,7 +48,7 @@ def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, 
         plt.plot(range(0, len(train_loss_actor) * tr_cycle, tr_cycle), train_loss_actor, label="Actor")
         plt.legend()
     plt.xlabel("Episodes")
-    plt.ylabel("DQN Training Losses")
+    plt.ylabel("Training Losses")
     plt.savefig(filepath + "_losses.eps", type="eps", dpi=1000)
 
 

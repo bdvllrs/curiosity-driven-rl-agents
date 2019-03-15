@@ -58,37 +58,37 @@ class Env:
 
     def _get_state_hard(self, board):
         x, y = self.agent_position
+        stop_right = False
+        stop_left = False
         stop_top = False
         stop_bottom = False
-        stop_left = False
-        stop_right = False
         state = np.zeros_like(board)
         state[x, y] = board[x, y]
         for k in range(1, self.size):
-            if not stop_top:
+            if not stop_right:
                 state[x, y + k] = board[x, y + k]
                 state[x + 1, y + k] = 0 if self.board[x + 1, y + k] == 0 else 1
                 state[x - 1, y + k] = 0 if self.board[x - 1, y + k] == 0 else 1
                 if self.board[x, y + k] == 0:
-                    stop_top = True
-            if not stop_bottom:
+                    stop_right = True
+            if not stop_left:
                 state[x, y - k] = board[x, y - k]
                 state[x + 1, y - k] = 0 if self.board[x + 1, y - k] == 0 else 1
                 state[x - 1, y - k] = 0 if self.board[x - 1, y - k] == 0 else 1
                 if self.board[x, y - k] == 0:
-                    stop_bottom = True
-            if not stop_left:
+                    stop_left = True
+            if not stop_top:
                 state[x - k, y] = board[x - k, y]
                 state[x - k, y + 1] = 0 if self.board[x - k, y + 1] == 0 else 1
                 state[x - k, y - 1] = 0 if self.board[x - k, y - 1] == 0 else 1
                 if self.board[x - k, y] == 0:
-                    stop_left = True
-            if not stop_right:
+                    stop_top = True
+            if not stop_bottom:
                 state[x + k, y] = board[x + k, y]
                 state[x + k, y + 1] = 0 if self.board[x + k, y + 1] == 0 else 1
                 state[x + k, y - 1] = 0 if self.board[x + k, y - 1] == 0 else 1
                 if self.board[x + k, y] == 0:
-                    stop_right = True
+                    stop_bottom = True
         return state
 
     def _get_state_progressive(self, board):

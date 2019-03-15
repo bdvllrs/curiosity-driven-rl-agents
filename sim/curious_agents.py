@@ -33,6 +33,20 @@ class CuriousACAgent(ACAgent):
         self.beta = config().learning.icm.beta
         self.lbd = config().learning.icm.lbd
 
+    def draw_action(self, state, test=False):
+        """
+        Args:
+            state:
+            test: If True, use only exploitation policy
+        """
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
+            action_probs = self.actor(state).detach().cpu().numpy()
+            action = np.argmax(action_probs[0])
+        self.steps_done += 1
+
+        return action
+
     def intrinsic_reward(self, prev_state, action, next_state):
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
@@ -100,6 +114,19 @@ class CuriousDQNAgent(DQNAgent):
         self.eta = config().learning.icm.eta
         self.beta = config().learning.icm.beta
         self.lbd = config().learning.icm.lbd
+
+    def draw_action(self, state, test=False):
+        """
+        Args:
+            state:
+            test: If True, use only exploitation policy
+        """
+        self.steps_done += 1
+        with torch.no_grad():
+            state = torch.tensor([state]).to(self.device).unsqueeze(dim=0).float()
+            action_probs = self.policy_net(state).detach().cpu().numpy()
+            action = np.argmax(action_probs[0])
+            return action
 
     def intrinsic_reward(self, prev_state, action, next_state):
         prev_state = prev_state.unsqueeze(dim=1)
