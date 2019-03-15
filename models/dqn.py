@@ -6,27 +6,39 @@ class DQNUnit(nn.Module):
 
     def __init__(self):
         super(DQNUnit, self).__init__()
-        board_size = config().sim.env.size
-        n_actions = 4
-        conv_layers = [
-            nn.Conv2d(1, 5, 3),
-            nn.ReLU(),
-            nn.Conv2d(5, 5, 3),
-            nn.MaxPool2d(2),
-            nn.ReLU(),
-        ]
-        out_dim = (board_size, board_size)
-        for layer in conv_layers:
-            if type(layer) != nn.ReLU:
-                out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
-        self.conv = nn.Sequential(*conv_layers)
-        self.fc = nn.Sequential(
-                nn.Linear(out_dim[0] * out_dim[1] * 5, 32),
+        if config().sim.env.state.type == "simple":
+            self.simple_fc = nn.Sequential(
+                    nn.Linear(4, 8),
+                    nn.ReLU(),
+                    nn.Linear(8, 8),
+                    nn.ReLU(),
+                    nn.Linear(8, 4)
+            )
+        else:
+            board_size = config().sim.env.size
+            n_actions = 4
+            conv_layers = [
+                nn.Conv2d(1, 5, 3),
                 nn.ReLU(),
-                nn.Linear(32, n_actions),
-        )
+                nn.Conv2d(5, 5, 3),
+                nn.MaxPool2d(2),
+                nn.ReLU(),
+            ]
+            out_dim = (board_size, board_size)
+            for layer in conv_layers:
+                if type(layer) != nn.ReLU:
+                    out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
+            self.conv = nn.Sequential(*conv_layers)
+            self.fc = nn.Sequential(
+                    nn.Linear(out_dim[0] * out_dim[1] * 5, 32),
+                    nn.ReLU(),
+                    nn.Linear(32, n_actions),
+            )
 
     def forward(self, x):
+        if config().sim.env.state.type == "simple":
+            return self.simple_fc(x)
+
         x = x.unsqueeze(dim=1)
         out = self.conv(x)
         out = out.view(x.size(0), -1)

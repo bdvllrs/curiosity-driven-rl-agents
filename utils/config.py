@@ -17,6 +17,14 @@ def update_config(conf, new_conf):
     return conf
 
 
+def load_yaml(file):
+    try:
+        conf_dict = yaml.load(file, Loader=yaml.FullLoader)
+    except AttributeError:
+        conf_dict = yaml.load(file)
+    return conf_dict
+
+
 class Config:
     def __init__(self, path="config/", cfg=None):
         self.__is_none = False
@@ -24,11 +32,11 @@ class Config:
         if path is not None and cfg is None:
             self.__path = os.path.abspath(os.path.join(os.curdir, path))
             with open(os.path.join(self.__path, "default.yaml"), "rb") as default_config:
-                self.__data.update(yaml.load(default_config, Loader=yaml.FullLoader))
+                self.__data.update(load_yaml(default_config))
             for cfg in sorted(os.listdir(self.__path)):
                 if cfg != "default.yaml" and cfg[-4:] in ["yaml", "yml"]:
                     with open(os.path.join(self.__path, cfg), "rb") as config_file:
-                        self.__data = update_config(self.__data, yaml.load(config_file, Loader=yaml.FullLoader))
+                        self.__data = update_config(self.__data, load_yaml(config_file))
 
     def set_(self, key, value):
         self.__data[key] = value

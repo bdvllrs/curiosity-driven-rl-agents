@@ -38,18 +38,20 @@ class Env:
         self.board_memory.append(self._board_to_image(board))
 
     def _board_to_image(self, board):
-        state = np.zeros((board.shape[0], board.shape[1], 3))
-        for i in range(board.shape[0]):
-            for j in range(board.shape[1]):
-                if board[i, j] == 0:  # wall
-                    state[i, j, :] = [0, 0, 0]
-                elif board[i, j] == 1:  # free position
-                    state[i, j, :] = [1, 1, 1]
-                elif board[i, j] == 0.3:  # coin
-                    state[i, j, :] = colors["coin"]
-                else:  # agent
-                    state[i, j, :] = colors["agent"]
-        return state
+        if len(board.shape) == 2:
+            state = np.zeros((board.shape[0], board.shape[1], 3))
+            for i in range(board.shape[0]):
+                for j in range(board.shape[1]):
+                    if board[i, j] == 0:  # wall
+                        state[i, j, :] = [0, 0, 0]
+                    elif board[i, j] == 1:  # free position
+                        state[i, j, :] = [1, 1, 1]
+                    elif board[i, j] == 0.3:  # coin
+                        state[i, j, :] = colors["coin"]
+                    else:  # agent
+                        state[i, j, :] = colors["agent"]
+            return state
+        return board
 
     def _add_state(self, board):
         self.state_memory.append(self._board_to_image(board))
@@ -98,9 +100,49 @@ class Env:
         recursive_walk(positions, state, board, depth_of_field)
         return state
 
+    def _get_state_simple(self, board):
+        x, y = self.agent_position
+        stop_top = False
+        stop_bottom = False
+        stop_left = False
+        stop_right = False
+        state = np.zeros(4)
+        for k in range(1, self.size):
+            if not stop_top:
+                if board[x, y + k] == 0.3:
+                    state[0] += 1
+                if self.board[x, y + k] == 0:
+                    if k == 1:  # If direct wall, -1 state, otherwise just 0, but we can still go in this direction.
+                        state[0] = -1
+                    stop_top = True
+            if not stop_bottom:
+                if board[x, y - k] == 0.3:
+                    state[1] += 1
+                if self.board[x, y - k] == 0:
+                    if k == 1:
+                        state[1] = -1
+                    stop_bottom = True
+            if not stop_left:
+                if board[x - k, y] == 0.3:
+                    state[2] += 1
+                if self.board[x - k, y] == 0:
+                    if k == 1:
+                        state[2] = -1
+                    stop_left = True
+            if not stop_right:
+                if board[x + k, y] == 0.3:
+                    state[3] += 1
+                if self.board[x + k, y] == 0:
+                    if k == 1:
+                        state[3] = -1
+                    stop_right = True
+        return state
+
     def _get_state(self, board):
         if config().sim.env.state.type == "progressive":
             return self._get_state_progressive(board)
+        elif config().sim.env.state.type == "simple":
+            return self._get_state_simple(board)
         return self._get_state_hard(board)
 
     def _get_possible_actions(self):
@@ -168,13 +210,15 @@ class Env:
         for t in range(len(self.board_memory)):
             self.board_memory[t] = cv2.resize(self.board_memory[t], None, fx=self.scale, fy=self.scale,
                                               interpolation=cv2.INTER_NEAREST)
-            self.state_memory[t] = cv2.resize(self.state_memory[t], None, fx=self.scale, fy=self.scale,
-                                              interpolation=cv2.INTER_NEAREST)
+            if config().sim.env.state.type != "simple":
+                self.state_memory[t] = cv2.resize(self.state_memory[t], None, fx=self.scale, fy=self.scale,
+                                                  interpolation=cv2.INTER_NEAREST)
         filepath = os.path.abspath(os.path.join(config().sim.output.path, f"{prefix}episode-{self.episode}"))
         data = np.array(self.board_memory) * 255
-        data_state = np.array(self.state_memory) * 255
         imageio.mimsave(filepath + '.gif', data.astype(np.uint8), duration=0.1)
-        imageio.mimsave(filepath + '_state.gif', data_state.astype(np.uint8), duration=0.1)
+        if config().sim.env.state.type != "simple":
+            data_state = np.array(self.state_memory) * 255
+            imageio.mimsave(filepath + '_state.gif', data_state.astype(np.uint8), duration=0.1)
 
     def plot(self, state=None):
         assert len(self.board_memory) > 0, "Env has not been reset."

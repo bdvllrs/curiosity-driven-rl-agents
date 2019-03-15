@@ -21,15 +21,28 @@ conv_layers = [
 class ICMFeatures(nn.Module):
     def __init__(self):
         super(ICMFeatures, self).__init__()
-        board_size = config().sim.env.size
-        out_dim = output_size_conv2d((board_size, board_size), conv_layers)
-        self.conv = nn.Sequential(*conv_layers)
-        self.fc = nn.Sequential(
-                nn.Linear(out_dim[0] * out_dim[1] * 5, config().learning.icm.features.dim),
-                nn.ReLU()
-        )
+        if config().sim.env.state.type == "simple":
+            feat_dim = config().learning.icm.features.dim
+            self.simple_fc = nn.Sequential(
+                    nn.Linear(4, feat_dim),
+                    nn.ReLU(),
+                    nn.Linear(feat_dim, feat_dim),
+                    nn.ReLU(),
+                    nn.Linear(feat_dim, feat_dim)
+            )
+        else:
+            board_size = config().sim.env.size
+            out_dim = output_size_conv2d((board_size, board_size), conv_layers)
+            self.conv = nn.Sequential(*conv_layers)
+            self.fc = nn.Sequential(
+                    nn.Linear(out_dim[0] * out_dim[1] * 5, config().learning.icm.features.dim),
+                    nn.ReLU()
+            )
 
     def forward(self, states):
+        if config().sim.env.state.type == "simple":
+            out = states.reshape(states.size(0), states.size(2))
+            return self.simple_fc(out)
         out = self.conv(states)
         out = out.view(states.size(0), -1)
         return self.fc(out)
