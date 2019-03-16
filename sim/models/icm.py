@@ -16,7 +16,7 @@ class ICMFeatures(nn.Module):
         if config().sim.env.state.type == "simple":
             feat_dim = config().learning.icm.feature_dim
             self.simple_fc = nn.Sequential(
-                    nn.Linear(1, feat_dim),
+                    nn.Linear(4, feat_dim),
                     nn.ReLU(),
                     nn.Linear(feat_dim, feat_dim),
                     nn.ReLU(),
