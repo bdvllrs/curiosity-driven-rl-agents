@@ -20,6 +20,7 @@ sim:  # simulations
     curious: Yes  # Use ICM Module?
     step: ICM  # [pixel, RF, ICM]
     curious_only: No
+    memory: 4
 
 
 learning:
