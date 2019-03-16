@@ -35,14 +35,16 @@ if __name__ == "__main__":
 
     processes = []
     lock = Lock()
+    sync_lock = Lock()
     counter = Value('i', 0)
 
-    process = Process(target=test, args=(0, config(), logger(), device, shared_model, shared_icm, counter))
+    process = Process(target=test, args=(0, config(), logger(), device, shared_model, shared_icm, counter, lock))
     process.start()
     processes.append(process)
 
     for idx in range(1, config().learning.n_processes + 1):
-        process = Process(target=train, args=(idx, config(), logger(), device, shared_model, shared_icm, counter, lock))
+        process = Process(target=train, args=(idx, config(), logger(), device, shared_model, shared_icm,
+                                              counter, lock))
         process.start()
         processes.append(process)
 

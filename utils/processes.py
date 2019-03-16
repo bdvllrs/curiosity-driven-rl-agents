@@ -1,3 +1,4 @@
+import time
 from tqdm import tqdm
 import numpy as np
 from torch.nn import functional as F
@@ -62,8 +63,8 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             state = next_state
             rewards.append(reward)
 
-            with lock:
-                counter.value += 1
+        with lock:
+            counter.value += 1
 
         loss = agent.learn(np.array(states), values, log_probs, probs, entropies, rewards, terminal)
 
@@ -79,8 +80,9 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
                     env.make_anim(config.filepath + "/train-")
 
 
-def test(idx, config, logger, device, shared_model, shared_icm, counter):
+def test(idx, config, logger, device, shared_model, shared_icm, counter, lock):
     max_length = config.sim.env.max_length
+    num_episodes = config.learning.num_episodes
 
     if config.sim.agent.curious:
         agent = CuriousA3CAgent(idx, device, config, shared_model, shared_icm)
@@ -89,33 +91,38 @@ def test(idx, config, logger, device, shared_model, shared_icm, counter):
     agent.eval()
 
     returns = []
+    keys = []
 
     env = Env()
 
-    agent.reset()
-    state = env.reset()
-    terminal = False
+    while True:
+            agent.reset()
+            state = env.reset()
+            terminal = False
 
-    length_episode = 0
-    expected_return = 0
+            length_episode = 0
+            expected_return = 0
 
-    # Do an episode
-    while not terminal or length_episode < max_length:
-        length_episode += 1
-        logits, value = agent.step(state, no_grad=True)
-        action_prob = F.softmax(logits, dim=1)
+            # Do an episode
+            while not terminal or length_episode < max_length:
+                length_episode += 1
+                logits, value = agent.step(state, no_grad=True)
+                action_prob = F.softmax(logits, dim=1)
 
-        action = action_prob.multinomial(num_samples=1).detach()
+                action = action_prob.multinomial(num_samples=1).detach()
 
-        next_state, reward, terminal = env.step(action)
-        expected_return += reward
+                next_state, reward, terminal = env.step(action)
+                expected_return += reward
 
-        state = next_state
+                state = next_state
 
-    returns.append(expected_return)
+            returns.append(expected_return)
+            keys.append(counter.value)
 
-    if not counter.value % config.metrics.test_cycle_length:
-        if config.sim.output.save_figs:
-            filepath = config.filepath + f"/metrics_"
-            np.save(filepath + "_returns_test.npy", returns)
-            env.make_anim(config.filepath + "/test-")
+            if config.sim.output.save_figs:
+                filepath = config.filepath + f"/metrics_"
+                np.save(filepath + "_returns_test.npy", returns)
+                np.save(filepath + "_keys_test.npy", keys)
+                env.make_anim(config.filepath + "/test-")
+
+            time.sleep(60 * 5)
