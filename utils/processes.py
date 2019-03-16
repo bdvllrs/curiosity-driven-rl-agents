@@ -48,7 +48,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             entropy = -(action_log_prob * action_prob).sum(1, keepdim=True)
             entropies.append(entropy)
             values.append(value)
-            probs.append(action_prob.detach().numpy())
+            probs.append(action_prob.detach().numpy()[0])
 
             action = action_prob.multinomial(num_samples=1).detach()
             action_log_prob = action_log_prob.gather(1, action)

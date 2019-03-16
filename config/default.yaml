@@ -5,7 +5,7 @@ sim:  # simulations
   env:
     size: 20  # Size of the board
     number_coins: 60  # Number of coins on the board
-    max_length: 10  # Maximum number of iterations before terminal state
+    max_length: 100  # Maximum number of iterations before terminal state
     state:
       type: progressive  # in [progressive, hard, simple] -- simple is 4 numbers giving the number of coins in the 4 directions
       depth_of_field: 5  # only if progressive state. Size of the viewing radius

@@ -166,7 +166,7 @@ class CuriousA3CAgent(A3CAgent):
     def intrinsic_reward(self, prev_state, action, next_state):
         prev_state = torch.FloatTensor([[prev_state]]).to(self.device)
         next_state = torch.FloatTensor([[next_state]]).to(self.device)
-        action = torch.FloatTensor(action).to(self.device)
+        action = torch.FloatTensor([action]).to(self.device)
         prev_features = self.icm.features_model(prev_state)
         next_features = self.icm.features_model(next_state)
         predicted_features = self.icm.forward_model(action, prev_features)
