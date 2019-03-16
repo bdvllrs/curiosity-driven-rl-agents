@@ -4,26 +4,19 @@ Pathak et al. Intrinsic Curiosity Module
 
 import torch
 import torch.nn as nn
+
 from utils import config, output_size_conv2d
 
-
-__all__ = ["ICMFeatures", "ICMInverseModel", "ICMForward"]
-
-conv_layers = [
-    nn.Conv2d(config().sim.agent.memory, 16, 4, stride=2),
-    nn.ReLU(),
-    nn.Conv2d(16, 32, 2),
-    nn.ReLU(),
-]
+__all__ = ["ICMFeatures", "ICMInverseModel", "ICMForward", "ICM"]
 
 
 class ICMFeatures(nn.Module):
     def __init__(self):
         super(ICMFeatures, self).__init__()
         if config().sim.env.state.type == "simple":
-            feat_dim = config().learning.icm.features.dim
+            feat_dim = config().learning.icm.feature_dim
             self.simple_fc = nn.Sequential(
-                    nn.Linear(4, feat_dim),
+                    nn.Linear(1, feat_dim),
                     nn.ReLU(),
                     nn.Linear(feat_dim, feat_dim),
                     nn.ReLU(),
@@ -31,10 +24,16 @@ class ICMFeatures(nn.Module):
             )
         else:
             board_size = config().sim.env.size
+            conv_layers = [
+                nn.Conv2d(1, 16, 4, stride=2),
+                nn.ReLU(),
+                nn.Conv2d(16, 32, 2),
+                nn.ReLU(),
+            ]
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim, config().learning.icm.features.dim),
+                    nn.Linear(out_dim, config().learning.icm.feature_dim),
                     nn.ReLU()
             )
 
@@ -51,7 +50,7 @@ class ICMInverseModel(nn.Module):
 
     def __init__(self):
         super(ICMInverseModel, self).__init__()
-        dim_features = config().learning.icm.features.dim
+        dim_features = config().learning.icm.feature_dim
         n_actions = 4
         self.fc = nn.Sequential(
                 nn.Linear(dim_features * 2, dim_features),
@@ -70,7 +69,7 @@ class ICMInverseModel(nn.Module):
 class ICMForward(nn.Module):
     def __init__(self):
         super(ICMForward, self).__init__()
-        dim_features = config().learning.icm.features.dim
+        dim_features = config().learning.icm.feature_dim
         n_actions = 4
         self.fc = nn.Sequential(
                 nn.Linear(dim_features + n_actions, dim_features),
@@ -83,3 +82,21 @@ class ICMForward(nn.Module):
     def forward(self, action, features):
         in_features = torch.cat((action, features), dim=1)
         return self.fc(in_features)
+
+
+class ICM(nn.Module):
+    def __init__(self):
+        super(ICM, self).__init__()
+        self.features_model = ICMFeatures()
+        self.forward_model = ICMForward()
+        self.inverse_model = ICMInverseModel()
+
+    def forward(self, prev_state, next_state, action):
+        feature_prev = self.features_model(prev_state)
+        feature_next = self.features_model(next_state)
+
+        pred_action = self.inverse_model(feature_prev, feature_next)
+        pred_next_features = self.forward_model(action, feature_prev)
+
+        return pred_action, pred_next_features, feature_prev, feature_next
+

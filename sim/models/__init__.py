@@ -1,2 +1,1 @@
-from sim.models.dqn import DQNUnit
-from sim.models.dqn import DQNUnit
+from sim.models.actor_critic import ActorCritic

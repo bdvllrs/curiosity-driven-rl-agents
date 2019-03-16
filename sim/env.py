@@ -19,7 +19,6 @@ class Env:
         self.episode = 0
         self.iter = 0
         self.size = config().sim.env.size
-        self.max_length = config().sim.env.max_length
         self.agent_position = None
         self.coin_positions = None
         self.board_memory = []
@@ -155,22 +154,22 @@ class Env:
         x, y = self.agent_position
         possible_actions = []
         if self.board[x, y + 1] == 1:
-            possible_actions.append("right")
+            possible_actions.append(3)
         if self.board[x, y - 1] == 1:
-            possible_actions.append("left")
+            possible_actions.append(2)
         if self.board[x + 1, y] == 1:
-            possible_actions.append("bottom")
+            possible_actions.append(1)
         if self.board[x - 1, y] == 1:
-            possible_actions.append("top")
+            possible_actions.append(0)
         return possible_actions
 
     def _action_to_position(self, action):
         x, y = self.agent_position
-        if action == "top":
+        if action == 0:
             return x - 1, y
-        if action == "bottom":
+        if action == 1:
             return x + 1, y
-        if action == "left":
+        if action == 2:
             return x, y - 1
         return x, y + 1
 
@@ -201,13 +200,13 @@ class Env:
         Returns: next_state, reward, terminal
 
         """
-        terminal = self.iter == self.max_length
         if action in self._get_possible_actions():  # Si action possible on la fait, sinon on fait rien
             self.agent_position = self._action_to_position(action)
         reward = 0
         if self.agent_position in self.coin_positions:
             reward = 1
             self.coin_positions.remove(self.agent_position)
+        terminal = len(self.coin_positions) == 0
         board = self._get_board()
         next_state = self._get_state(board)
         self._add_state(next_state)

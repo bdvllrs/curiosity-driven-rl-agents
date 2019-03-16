@@ -55,31 +55,32 @@ def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, 
 
 
 class Metrics:
-    def __init__(self):
-        self.returns = []
-        self.loss_critic = []
-        self.loss_actor = []
-        self.returns_buffer = []
-        self.loss_critic_buffer = []
-        self.loss_actor_buffer = []
+    def __init__(self, cfg):
+        self.metrics = {}
+        self.buffers = {}
+        self.config = cfg
 
-    def add_return(self, expected_return):
-        self.returns_buffer.append(expected_return)
+    def add(self, name):
+        self.metrics[name] = []
+        self.buffers[name] = []
 
-    def add_losses(self, loss_critic, loss_actor=None):
-        self.loss_critic_buffer.append(loss_critic)
-        if loss_actor is not None:
-            self.loss_actor_buffer.append(loss_actor)
+    def append(self, name, value):
+        self.buffers[name].append(value)
 
-    def get_metrics(self):
-        if len(self.returns_buffer):
-            self.returns.append(np.mean(self.returns_buffer))
-            self.returns_buffer = []
-        if len(self.loss_critic_buffer):
-            self.loss_critic.append(np.mean(self.loss_critic_buffer))
-            self.loss_critic_buffer = []
-        if len(self.loss_actor_buffer):
-            self.loss_actor.append(np.mean(self.loss_actor_buffer))
-            self.loss_actor_buffer = []
+    def save(self, name, step, suffix="", xlabel=None, ylabel=None):
+        if self.buffers[name]:
+            self.metrics[name].append(np.mean(self.buffers[name]))
+            self.buffers[name] = []
 
-        return self.returns, self.loss_critic, self.loss_actor
+        if self.config.sim.output.save_figs:
+            filepath = self.config.filepath + "/metrics_" + suffix
+            plt.clf()
+            plt.cla()
+            plt.figure(0)
+            plt.plot(range(0, len(self.metrics[name]) * step, step), self.metrics[name])
+            if xlabel is not None:
+                plt.xlabel(xlabel)
+            if ylabel is not None:
+                plt.ylabel(ylabel)
+            plt.savefig(filepath + ".eps", type="eps", dpi=1000)
+

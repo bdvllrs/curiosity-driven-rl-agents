@@ -1,123 +1,50 @@
-import os
 from datetime import datetime
-import random
+import os
 import torch
-from tqdm import tqdm
-from sim import Env, ACAgent, CuriousACAgent, DQNAgent, CuriousDQNAgent
-from utils import config, Memory, Metrics, save_figs, logger
+from torch.multiprocessing import Lock, Process, Value
 
-device = torch.device("cpu")
-if config().learning.cuda and torch.cuda.is_available():
-    print("Using cuda")
-    device = torch.device("cuda")
-else:
-    print("Using CPU")
+from sim.models.actor_critic import ActorCritic
+from sim.models.icm import ICM
+from utils import config, logger
+from utils.processes import test, train
 
-env = Env()
-agent_type = config().sim.agent.type
-agent_curious = config().sim.agent.curious
-if agent_type == "AC" and agent_curious:
-    print("Using Curious AC Agent")
-    agent = CuriousACAgent(device)
-elif agent_type == "dqn" and not agent_curious:
-    print("Using DQN Agent")
-    agent = DQNAgent(device)
-elif agent_type == "AC" and not agent_curious:
-    print("Using Actor-Critic Agent")
-    agent = ACAgent(device)
-else:
-    print("Using Curious DQN Agent")
-    agent = CuriousDQNAgent(device)
-experience_replay = Memory(config().experience_replay.size)
-train_metrics = Metrics()
-test_metrics = Metrics()
-
-possible_actions = ["top", "bottom", "right", "left"]
-action_to_number = {"top": 0, "bottom": 1, "right": 2, "left": 3}
-batch_size = config().learning.batch_size
-num_episodes = config().learning.num_episodes
-gamma = config().learning.gamma
-
-date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
-if config().sim.output.save_figs:
-    os.mkdir(filepath)
-    config().save_(filepath + "/config.yaml")
-    logger().set(file=filepath + "/logs.txt")
-
-if config().learning.load_model:
-    agent.load(config().learning.load_model)
-
-is_test = False
-cycle_count = 1
-train_cycle_length = config().metrics.train_cycle_length
-test_cycle_length = config().metrics.test_cycle_length
-memory_size = config().sim.agent.memory
-train_count = 0
-test_count = 0
-
-for e in tqdm(range(num_episodes)):
-    metrics = train_metrics if not is_test else test_metrics
-    state = env.reset()
-    terminal = False
-
-    state_memory = [env.get_blank_state()] * (memory_size - 1)
-    state_memory.append(state)
-
-    expected_return = 0
-    discount = 1
-
-    # Do an episode
-    while not terminal:
-        action = possible_actions[agent.draw_action(state_memory[:], is_test)]
-        # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
-        # env.plot()
-        state, reward, terminal = env.step(action)
-
-        prev_state = state_memory[:]
-        state_memory.pop(0)  # Remove the oldest frame
-        state_memory.append(state)
-
-        experience_replay.add(prev_state[:], state_memory[:], action_to_number[action], reward)
-
-        expected_return += discount * reward
-        discount *= gamma
-
-        # Do some learning
-        batch = experience_replay.get_batch(batch_size)
-        if not is_test and batch is not None:
-            state_batch, next_state_batch, action_batch, reward_batch = batch
-            state_batch = torch.FloatTensor(state_batch).to(device)
-            next_state_batch = torch.FloatTensor(next_state_batch).to(device)
-            action_batch = torch.FloatTensor(action_batch).to(device)
-            reward_batch = torch.FloatTensor(reward_batch).to(device)
-            metrics.add_losses(*agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
-
-    metrics.add_return(expected_return)
-
-    if config().sim.output.save_figs and not is_test and not (train_count % config().sim.output.save_every):
-        env.make_anim(date + "/train-")
-    elif config().sim.output.save_figs and is_test and not (test_count % config().sim.output.save_every):
-        env.make_anim(date + "/test-")
-
-    if config().sim.output.save_figs and ((not is_test and cycle_count == train_cycle_length)
-                                          or (is_test and cycle_count == test_cycle_length)):
-        train_returns, train_loss_critic, train_loss_actor = train_metrics.get_metrics()
-        test_returns, _, _ = test_metrics.get_metrics()
-        if not is_test:
-            logger().log(f"Training return = {train_returns[-1]}")
-        else:
-            logger().log(f"Testing return = {test_returns[-1]}")
-        save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, date + "/")
-        cycle_count = 0
-        is_test = not is_test
-
-    if is_test:
-        test_count += 1
+if __name__ == "__main__":
+    device = torch.device("cpu")
+    if config().learning.cuda and torch.cuda.is_available():
+        print("Using cuda")
+        device = torch.device("cuda")
     else:
-        train_count += 1
+        print("Using CPU")
 
-    cycle_count += 1
+    date = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+    filepath = os.path.abspath(os.path.join(config().sim.output.path, date))
+    if config().sim.output.save_figs:
+        os.mkdir(filepath)
+        config().set_("filepath", filepath)
+        config().save_(filepath + "/config.yaml")
+        logger().set(file=filepath + "/logs.txt")
 
-if config().learning.save_models:
-    agent.save(filepath + "/models.pth")
+    shared_model = ActorCritic().to(device)
+    shared_model.share_memory()
+
+    shared_icm = None
+    if config().sim.agent.curious:
+        print("Using ICM Module.")
+        shared_icm = ICM().to(device)
+        shared_icm.share_memory()
+
+    processes = []
+    lock = Lock()
+    counter = Value('i', 0)
+
+    process = Process(target=test, args=(0, config(), logger(), device, shared_model, shared_icm, counter))
+    process.start()
+    processes.append(process)
+
+    for idx in range(1, config().learning.n_processes + 1):
+        process = Process(target=train, args=(idx, config(), logger(), device, shared_model, shared_icm, counter, lock))
+        process.start()
+        processes.append(process)
+
+    for process in processes:
+        process.join()

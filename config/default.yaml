@@ -5,7 +5,7 @@ sim:  # simulations
   env:
     size: 20  # Size of the board
     number_coins: 60  # Number of coins on the board
-    max_length: 100  # Maximum number of iterations before terminal state
+    max_length: 10  # Maximum number of iterations before terminal state
     state:
       type: progressive  # in [progressive, hard, simple] -- simple is 4 numbers giving the number of coins in the 4 directions
       depth_of_field: 5  # only if progressive state. Size of the viewing radius
@@ -13,29 +13,20 @@ sim:  # simulations
   output:
     path: path/to/output/videos
     save_figs: Yes
-    save_every: 100  # Save results every 100 episodes
 
   agent:
-    type: dqn  # in ["dqn", "AC"] DQN or Actor-Critic
     curious: Yes  # Use ICM Module?
-    memory: 4  # Number of frames to remember (number of frames in the state)
 
 learning:
-  cuda: Yes
+  cuda: No
   save_models: Yes
   load_model: No
-  batch_size: 64
+  n_processes: 4
   num_episodes: 1000 # Number of episodes of learning
 
   gamma: 0.9 # Discount factor.
 
-  # If DQN without curiosity
-  eps_start: 0.8
-  eps_end: 0.1
-  eps_decay: 1000
-
-  lr_actor: 0.01 # Learning rate for the actor, or dqn
-  lr_critic: 0.01 # Learning rate
+  lr: 0.0001 # Learning rate for the actor, or dqn
   update_frequency: 100 # Update the target net every...
   tau: 0.5  # When updating the target nets do tau * target + (1 - tau) * current
 
@@ -43,25 +34,19 @@ learning:
     use: Yes
     tau: 0.5
 
+  value_loss_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 50
+  gae:
+    tau: 1.00
+
   icm:  # To learn the ICM Module.
     eta: 0.2
     beta: 0.2
     lbd: 0.1
-    features:
-      dim: 128  # Dimension of the feature space
-      lr: 0.001
-    forward_model:
-      lr: 0.001
-    inverse_model:
-      lr: 0.001
-
-testing:
-  policy:
-    random_action_prob: 0.1  # When testing, probability of choosing a random action
-
-experience_replay:
-  size: 10000  # Size of the experience replay buffer
+    lr: 0.001
+    feature_dim: 128  # Dimension of the feature space
 
 metrics:
-  train_cycle_length: 100 # in number of episodes (metrics are averaged over)
-  test_cycle_length: 100
+  train_cycle_length: 10 # in number of episodes (metrics are averaged over)
+  test_cycle_length: 10

@@ -1,130 +1,113 @@
 import math
-import random
-
-import numpy as np
 import torch
 from torch.nn import functional as F
 from torch.optim import Adam
 
-from utils import config
-from .models.actor_critic import Critic, Actor
-from .models.dqn import DQNUnit
-from .utils import hard_update, soft_update
+from sim.models.icm import ICM
+
+from .models.actor_critic import ActorCritic
 
 
-class ACAgent:
-    """
-    OpenAI DDPG Actor-Critic
-    https://arxiv.org/pdf/1509.02971.pdf
-    """
+class A3CAgent:
 
-    def __init__(self, device):
+    def __init__(self, idx, device, config, shared_model):
+        self.current_agent_idx = idx
         self.memory = None
         self.number_actions = 4
-
-        self.eps_start = config().learning.eps_start
-        self.eps_end = config().learning.eps_end
-        self.eps_decay = config().learning.eps_decay
+        self.config = config
+        self.shared_model = shared_model
 
         # For RL
-        self.gamma = config().learning.gamma
-        self.update_frequency = config().learning.update_frequency
+        self.gamma = self.config.learning.gamma
+        self.update_frequency = self.config.learning.update_frequency
         self.device = device
 
-        self.actor = Actor().to(self.device)
-        self.critic = Critic().to(self.device)
+        self.ac_model = ActorCritic().to(self.device)
 
-        self.actor_target = Actor().to(self.device)
-        self.critic_target = Critic().to(self.device)
-        hard_update(self.actor_target, self.actor)
-        hard_update(self.critic_target, self.critic)
-        self.actor_target.eval()
-        self.critic_target.eval()
-
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=config().learning.lr_critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=config().learning.lr_actor)
+        self.ac_optimizer = torch.optim.Adam(self.shared_model.parameters(), lr=self.config.learning.lr)
 
         self.critic_criterion = torch.nn.MSELoss()
 
         self.steps_done = 0
         self.n_iter = 0
-        self.agents = None
+        self.lstm_state = None
 
-        self.current_agent_idx = None
+    def sync(self):
+        """
+        Sync with shared model
+        """
+        self.ac_model.load_state_dict(self.shared_model.state_dict())
 
-    def draw_action(self, state, test=False):
+    def reset(self):
+        h0 = torch.zeros(1, 256)
+        c0 = torch.zeros(1, 256)
+
+        self.lstm_state = (h0, c0)
+
+        self.sync()
+
+    def train(self):
+        self.ac_model.train()
+
+    def eval(self):
+        self.ac_model.eval()
+
+    def step(self, state, no_grad=False):
         """
         Args:
+            no_grad:
             state:
-            test: If True, use only exploitation policy
         """
-        eps_threshold = (self.eps_end + (self.eps_start - self.eps_end) *
-                         math.exp(-1. * self.steps_done / self.eps_decay))
-        if test:
-            eps_threshold = config().testing.policy.random_action_prob
+        state = torch.FloatTensor([[state]]).to(self.device)
+        if no_grad:
+            with torch.no_grad():
+                out_actor, out_critic, lstm_state = self.ac_model(state, self.lstm_state)
+        else:
+            out_actor, out_critic, lstm_state = self.ac_model(state, self.lstm_state)
+        self.lstm_state = lstm_state
 
-        with torch.no_grad():
-            p = np.random.random()
-            state = torch.FloatTensor([state]).to(self.device)
-            if p > eps_threshold:
-                action_probs = self.actor(state).detach().cpu().numpy()
-                action = np.argmax(action_probs[0])
-            else:
-                action = random.randrange(self.number_actions)
-        self.steps_done += 1
-
-        return action
+        return out_actor, out_critic
 
     def intrinsic_reward(self, prev_state, action, next_state):
         return 0
 
-    def get_losses(self, state_batch, next_state_batch, action_batch, reward_batch):
-        if config().learning.gumbel_softmax.use:
-            action_batch = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
+    def share_grads(self):
+        for param, shared_param in zip(self.ac_model.parameters(),
+                                       self.shared_model.parameters()):
+            if shared_param.grad is not None:
+                return
+            shared_param._grad = param.grad
 
-        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
+    def learn(self, states, values, log_probs, _, entropies, rewards, terminal):
+        R = torch.zeros(1, 1)
+        if not terminal:
+            last_state = torch.FloatTensor([[states[-1]]]).to(self.device)
+            _, value, _ = self.ac_model(last_state, self.lstm_state)
+            R = value.detach()
 
-        predicted_next_actions = self.actor_target(next_state_batch)
+        values.append(R)
+        policy_loss = 0
+        value_loss = 0
+        gae = torch.zeros(1, 1)
+        for i in reversed(range(len(rewards))):
+            R = self.gamma * R + rewards[i]
+            advantage = R - values[i]
+            value_loss += 0.5 * advantage.pow(2)
 
-        y = reward_batch + self.gamma * self.critic_target(next_state_batch, predicted_next_actions)
+            # Generalized advantage estimation
+            dt = rewards[i] + self.gamma * values[i + 1] - values[i]
+            gae = self.gamma * gae * self.config.learning.gae.tau + dt
 
-        loss_critic = self.critic_criterion(y, self.critic(state_batch, action_batch))
+            policy_loss = policy_loss - log_probs[i] * gae.detach() - self.config.learning.entropy_coef * entropies[i]
 
-        actor_loss = -self.critic(state_batch, self.actor(state_batch))
-        actor_loss = actor_loss.mean()
+        self.ac_optimizer.zero_grad()
+        loss = policy_loss + self.config.learning.value_loss_coef * value_loss
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.ac_model.parameters(), self.config.learning.max_grad_norm)
+        self.share_grads()
+        self.ac_optimizer.step()
 
-        return loss_critic, actor_loss
-
-    def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
-        actions = action_batch.unsqueeze(dim=1).long()
-        action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
-        action_batch.scatter_(1, actions, 1)
-
-        loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
-
-        # Critic backprop
-        self.critic_optimizer.zero_grad()
-        loss_critic.backward()
-        self.critic_optimizer.step()
-
-        # Actor backprop
-        self.actor_optimizer.zero_grad()
-        self.critic.eval()
-        actor_loss.backward()
-        self.actor_optimizer.step()
-        self.critic.train()
-
-        self.update()
-
-        return loss_critic.detach().cpu().item(), actor_loss.cpu().item()
-
-    def update(self):
-        if not self.n_iter % config().learning.update_frequency:
-            soft_update(self.critic_target, self.critic)
-            soft_update(self.actor_target, self.actor)
-
-        self.n_iter += 1
+        return loss.detach().item()
 
     def save(self, name):
         """
@@ -134,12 +117,7 @@ class ACAgent:
         :return:
         """
         save_dict = {
-            'critic': self.critic.state_dict(),
-            'critic_target': self.critic_target.state_dict(),
-            'actor': self.actor.state_dict(),
-            'actor_target': self.actor_target.state_dict(),
-            'critic_optimizer': self.critic_optimizer.state_dict(),
-            'actor_optimizer': self.actor_optimizer.state_dict()
+            'ac_model': self.ac_model.state_dict(),
         }
         torch.save(save_dict, name)
 
@@ -150,92 +128,109 @@ class ACAgent:
         :return: models init
         """
         params = torch.load(name)
-        self.critic.load_state_dict(params['critic'])
-        self.critic_target.load_state_dict(params['critic_target'])
-        self.actor.load_state_dict(params['actor'])
-        self.actor_target.load_state_dict(params['actor_target'])
-        self.critic_optimizer.load_state_dict(params['critic_optimizer'])
-        self.actor_optimizer.load_state_dict(params['actor_optimizer'])
+        self.ac_model.load_state_dict(params['ac_model'])
 
 
-class DQNAgent:
-    def __init__(self, device):
-        self.memory = None
-        self.number_actions = 4
+class CuriousA3CAgent(A3CAgent):
+    """
+    Pathak et al. Curiosity
+    """
 
-        # For RL
-        self.gamma = config().learning.gamma
-        self.eps_start = config().learning.eps_start
-        self.eps_end = config().learning.eps_end
-        self.eps_decay = config().learning.eps_decay
-        self.lr = config().learning.lr_actor
-        self.update_frequency = config().learning.update_frequency
+    def __init__(self, idx, device, config, shared_model, shared_icm):
+        super(CuriousA3CAgent, self).__init__(idx, device, config, shared_model)
 
-        self.device = device
+        self.icm = ICM()
+        self.icm_optimizer = Adam(self.icm.parameters(), lr=self.config.learning.icm.lr)
 
-        self.policy_net = DQNUnit().to(self.device)
-        self.target_net = DQNUnit().to(self.device)
-        self.policy_optimizer = Adam(self.policy_net.parameters(), lr=self.lr)
-        hard_update(self.target_net, self.policy_net)
-        self.target_net.eval()
+        self.shared_icm = shared_icm
 
-        self.n_iter = 0
-        self.steps_done = 0
+        self.eta = self.config.learning.icm.eta
+        self.beta = self.config.learning.icm.beta
+        self.lbd = self.config.learning.icm.lbd
 
-    def draw_action(self, state, test=False):
+    def sync(self):
         """
-        Args:
-            state:
-            test: If True, use only exploitation policy
+        Sync with shared model
         """
-        eps_threshold = (self.eps_end + (self.eps_start - self.eps_end) *
-                         math.exp(-1. * self.steps_done / self.eps_decay))
-        if test:
-            eps_threshold = config().testing.policy.random_action_prob
+        self.ac_model.load_state_dict(self.shared_model.state_dict())
+        self.icm.load_state_dict(self.shared_icm.state_dict())
 
-        self.steps_done += 1
-        with torch.no_grad():
-            p = np.random.random()
-            state = torch.tensor([state]).to(self.device).float()
-            if p > eps_threshold:
-                action_probs = self.policy_net(state).detach().cpu().numpy()
-                action = np.argmax(action_probs[0])
-            else:
-                action = random.randrange(self.number_actions)
-            return action
+    def train(self):
+        self.ac_model.train()
+        self.icm.train()
+
+    def eval(self):
+        self.ac_model.eval()
+        self.icm.eval()
 
     def intrinsic_reward(self, prev_state, action, next_state):
-        return 0
+        prev_state = torch.FloatTensor([[prev_state]]).to(self.device)
+        next_state = torch.FloatTensor([[next_state]]).to(self.device)
+        action = torch.FloatTensor(action).to(self.device)
+        prev_features = self.icm.features_model(prev_state)
+        next_features = self.icm.features_model(next_state)
+        predicted_features = self.icm.forward_model(action, prev_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
 
-    def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        self.policy_optimizer.zero_grad()
+    def share_grads(self):
+        for param, shared_param in zip(self.ac_model.parameters(),
+                                       self.shared_model.parameters()):
+            if shared_param.grad is not None:
+                return
+            shared_param._grad = param.grad
+        for param, shared_param in zip(self.icm.parameters(),
+                                       self.shared_icm.parameters()):
+            if shared_param.grad is not None:
+                return
+            shared_param._grad = param.grad
 
-        action_batch = action_batch.reshape(action_batch.size(0), 1).long()
-        reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
-        state_batch = state_batch.unsqueeze(dim=1)
-        next_state_batch = next_state_batch.unsqueeze(dim=1)
+    def learn(self, states, values, log_probs, probs, entropies, rewards, terminal):
+        R = torch.zeros(1, 1)
+        if not terminal:
+            last_state = torch.FloatTensor([[states[-1]]]).to(self.device)
+            _, value, _ = self.ac_model(last_state, self.lstm_state)
+            R = value.detach()
 
-        policy_output = self.policy_net(state_batch)  # value function for all actions size (batch, n_actions)
-        action_by_policy = policy_output.gather(1, action_batch)  # only keep the value function for the given action
+        values.append(R)
+        policy_loss = 0
+        value_loss = 0
+        gae = torch.zeros(1, 1)
+        for i in reversed(range(len(rewards))):
+            R = self.gamma * R + rewards[i]
+            advantage = R - values[i]
+            value_loss += 0.5 * advantage.pow(2)
 
-        # DDQN
-        actions_next = self.policy_net(next_state_batch).detach().max(1)[1].unsqueeze(1)
-        Qsa_prime_targets = self.target_net(next_state_batch).gather(1, actions_next)
+            # Generalized advantage estimation
+            dt = rewards[i] + self.gamma * values[i + 1] - values[i]
+            gae = self.gamma * gae * self.config.learning.gae.tau + dt
 
-        actions_by_cal = reward_batch + (self.gamma * Qsa_prime_targets)
+            policy_loss = policy_loss - log_probs[i] * gae.detach() - self.config.learning.entropy_coef * entropies[i]
 
-        loss = F.mse_loss(action_by_policy, actions_by_cal)
+        self.ac_optimizer.zero_grad()
+        loss = policy_loss + self.config.learning.value_loss_coef * value_loss
+
+        # Learning ICM
+        self.icm.zero_grad()
+
+        state_batch = torch.FloatTensor(states[:-1]).to(self.device).unsqueeze(dim=1)
+        next_state_batch = torch.FloatTensor(states[1:]).to(self.device).unsqueeze(dim=1)
+        action_batch = torch.FloatTensor(probs).to(self.device)
+
+        predicted_actions, predicted_feature_next, _, feature_next = self.icm(state_batch, next_state_batch,
+                                                                              action_batch)
+
+        loss_predictor = F.mse_loss(predicted_actions, action_batch)
+        loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
+        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * loss
+
         loss.backward()
-        for param in self.policy_net.parameters():
-            param.grad.data.clamp_(-1, 1)
-        self.policy_optimizer.step()
+        torch.nn.utils.clip_grad_norm_(self.ac_model.parameters(), self.config.learning.max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(self.icm.parameters(), self.config.learning.max_grad_norm)
+        self.share_grads()
+        self.ac_optimizer.step()
+        self.icm_optimizer.step()
 
-        if not self.n_iter % self.update_frequency:
-            soft_update(self.target_net, self.policy_net)
-
-        self.n_iter += 1
-
-        return loss.detach().cpu().item(), None
+        return loss.detach().cpu().item()
 
     def save(self, name):
         """
@@ -244,9 +239,10 @@ class DQNAgent:
         :return: models saved
         :return:
         """
-        save_dict = {'policy': self.policy_net.state_dict(),
-                     'target_policy': self.target_net.state_dict(),
-                     'policy_optimizer': self.policy_optimizer.state_dict()}
+        save_dict = {
+            'ac_model': self.ac_model.state_dict(),
+            'icm': self.icm.state_dict(),
+        }
         torch.save(save_dict, name)
 
     def load(self, name):
@@ -256,6 +252,5 @@ class DQNAgent:
         :return: models init
         """
         params = torch.load(name)
-        self.policy_net.load_state_dict(params['policy'])
-        self.target_net.load_state_dict(params['target_policy'])
-        self.policy_optimizer.load_state_dict(params['policy_optimizer'])
+        self.ac_model.load_state_dict(params['ac_model'])
+        self.icm.load_state_dict(params['icm'])

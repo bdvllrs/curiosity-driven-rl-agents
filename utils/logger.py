@@ -16,7 +16,8 @@ class Logger:
         if "verbose" in params.keys():
             self.verbose = params["verbose"]
 
-    def log(self, message, alert_type=""):
+    def log(self, message, verbose=None, alert_type=""):
+        verbose = self.verbose if verbose is None else verbose
         caller = getframeinfo(stack()[1][0])
         self.messages.append({
             "time": datetime.today().strftime('%Y-%m-%d %H:%M:%S'),
@@ -24,8 +25,8 @@ class Logger:
             "stack": f"{caller.filename}:L {caller.lineno}",
             "type": alert_type
         })
-        if self.verbose:
-            print(self._to_string(self.messages[-1]))
+        if verbose:
+            print(self._to_string(self.messages[-1], simple_stack=True))
         if self.file is not None:
             with open(self.file, "a+") as f:
                 f.write(self._to_string(self.messages[-1]) + "\n")
@@ -36,11 +37,14 @@ class Logger:
     def warning(self, message):
         self.log(message, "warning")
 
-    def _to_string(self, msg):
+    def _to_string(self, msg, simple_stack=False):
         message = ""
+        stack = msg["stack"]
+        if simple_stack:
+            stack = stack.split("/")[-1]
         if msg['type'] != '':
             message += f"*{msg['type']}* "
-        message += f"[{msg['time']}] {msg['stack']} - {msg['message']}"
+        message += f"[{msg['time']}] {stack} - {msg['message']}"
         return message
 
     def _get_fulltext(self):
