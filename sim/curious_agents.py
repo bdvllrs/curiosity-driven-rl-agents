@@ -53,21 +53,20 @@ class CuriousACAgent(ACAgent):
 
     def intrinsic_reward_pixel(self, prev_state, action, next_state):
         predicted_state = self.forward_icm(action, prev_state)
-        if config().sim.env.state.type != "simple":
-            next_state = next_state.view(next_state.size(0), -1)
-        return self.eta / 2 * F.mse_loss(next_state, predicted_state)
+        next_state = next_state.view(next_state.size(0), -1)
+        return self.eta / 2 * F.mse_loss(next_state, predicted_state, reduction = "none").mean(1).unsqueeze(1)
 
     def intrinsic_reward_RF(self, prev_state, action, next_state):
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
     def intrinsic_reward_ICM(self, prev_state, action, next_state):
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
@@ -169,7 +168,7 @@ class CuriousDQNAgent(DQNAgent):
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         self.policy_optimizer.zero_grad()
