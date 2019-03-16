@@ -2,7 +2,7 @@ import math
 import torch
 from torch.nn import functional as F
 from torch.optim import Adam
-
+from utils import config
 from sim.models.icm import ICM
 
 from .models.actor_critic import ActorCritic
@@ -172,6 +172,26 @@ class CuriousA3CAgent(A3CAgent):
         predicted_features = self.icm.forward_model(action, prev_features)
         return self.eta / 2 * F.mse_loss(next_features, predicted_features)
 
+    def intrinsic_reward_rf(self, prev_state, action, next_state):
+        prev_state = torch.FloatTensor([[prev_state]]).to(self.device)
+        next_state = torch.FloatTensor([[next_state]]).to(self.device)
+        action = torch.FloatTensor([action]).to(self.device)
+        with torch.no_grad():
+            prev_features = self.icm.features_model(prev_state)
+            next_features = self.icm.features_model(next_state)
+
+        predicted_features = self.icm.forward_model(action, prev_features)
+
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
+
+    def intrinsic_reward_pixel(self,  prev_state, action, next_state):
+        prev_state = torch.FloatTensor([[prev_state]]).to(self.device)
+        next_state = torch.FloatTensor([[next_state]]).to(self.device)
+        action = torch.FloatTensor([action]).to(self.device)
+        predicted_features = self.icm.forward_model(action, prev_state)
+        return self.eta / 2 * F.mse_loss(next_state, predicted_features)
+
+
     def share_grads(self):
         for param, shared_param in zip(self.ac_model.parameters(),
                                        self.shared_model.parameters()):
@@ -216,12 +236,25 @@ class CuriousA3CAgent(A3CAgent):
         next_state_batch = torch.FloatTensor(states[1:]).to(self.device).unsqueeze(dim=1)
         action_batch = torch.FloatTensor(probs).to(self.device)
 
-        predicted_actions, predicted_feature_next, _, feature_next = self.icm(state_batch, next_state_batch,
-                                                                              action_batch)
+        if config().sim.agent.step == "ICM":
+            predicted_actions, predicted_feature_next, _, feature_next = self.icm(state_batch, next_state_batch,
+                                                                                  action_batch)
+            loss_predictor = F.mse_loss(predicted_actions, action_batch)
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
+            loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * loss
 
-        loss_predictor = F.mse_loss(predicted_actions, action_batch)
-        loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
-        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * loss
+        if config().sim.agent.step == "RF":
+            predicted_feature_next, feature_next = self.icm(state_batch, next_state_batch,
+                                                                                  action_batch)
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
+            loss = loss_next_state_predictor + self.lbd * loss
+
+        if config().sim.agent.step == "pixel":
+            predicted_feature_next, feature_next = self.icm(state_batch, next_state_batch,
+                                                                                  action_batch)
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
+            loss = loss_next_state_predictor + self.lbd * loss
+
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.ac_model.parameters(), self.config.learning.max_grad_norm)
