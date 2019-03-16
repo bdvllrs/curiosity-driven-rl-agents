@@ -33,6 +33,11 @@ class CuriousACAgent(ACAgent):
             self.forward_icm = Forward_pixel().to(self.device)
             self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
 
+        if config().sim.agent.step == "RF":
+            self.features_icm = ICMFeatures().to(self.device)
+            self.forward_icm = ICMForward().to(self.device)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
+
         self.eta = config().learning.icm.eta
         self.beta = config().learning.icm.beta
         self.lbd = config().learning.icm.lbd
@@ -57,8 +62,9 @@ class CuriousACAgent(ACAgent):
         return self.eta / 2 * F.mse_loss(next_state, predicted_state, reduction = "none").mean(1).unsqueeze(1)
 
     def intrinsic_reward_RF(self, prev_state, action, next_state):
-        prev_features = self.features_icm(prev_state)
-        next_features = self.features_icm(next_state)
+        with torch.no_grad():
+            prev_features = self.features_icm(prev_state)
+            next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
         return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
@@ -119,7 +125,28 @@ class CuriousACAgent(ACAgent):
                 next_state_batch = next_state_batch.view(next_state_batch.size(0), -1)
 
             loss_next_state_predictor = F.mse_loss(predicted_next_states, next_state_batch)
-            loss = loss_next_state_predictor
+            loss = loss_next_state_predictor + self.lbd * actor_loss
+            loss.backward()
+
+            self.forward_icm_optimizer.step()
+            self.actor_optimizer.step()
+            self.critic.train()
+
+            self.update()
+
+
+
+        # Learning ICM
+        if config().sim.agent.step == "RF":
+            self.forward_icm_optimizer.zero_grad()
+            with torch.no_grad():
+                feature_states = self.features_icm(state_batch)
+                feature_next_states = self.features_icm(next_state_batch)
+
+            predicted_feature_next_states = self.forward_icm(action_batch, feature_states)
+
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
+            loss = loss_next_state_predictor + self.lbd * actor_loss
             loss.backward()
 
             self.forward_icm_optimizer.step()
