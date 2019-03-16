@@ -234,18 +234,6 @@ class CuriousDQNAgent(DQNAgent):
         action_batch_onehot = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
         action_batch_onehot.scatter_(1, action_batch, 1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
-
-        if config().sim.agent.step == "ICM":
-            r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
-        if config().sim.agent.step == "pixel":
-            r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
-        if config().sim.agent.step == "RF":
-            r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
-        if not config().sim.agent.curious_only:
-            reward_batch = reward_batch + r_i
-        else:
-            reward_batch = r_i
-
         state_batch = state_batch.unsqueeze(dim=1)
         next_state_batch = next_state_batch.unsqueeze(dim=1)
 
@@ -255,6 +243,17 @@ class CuriousDQNAgent(DQNAgent):
         # DDQN
         actions_next = self.policy_net(next_state_batch).detach().max(1)[1].unsqueeze(1)
         Qsa_prime_targets = self.target_net(next_state_batch).gather(1, actions_next)
+
+        if config().sim.agent.step == "ICM":
+            r_i = self.intrinsic_reward_ICM(state_batch, action_batch_onehot, next_state_batch)
+        if config().sim.agent.step == "pixel":
+            r_i = self.intrinsic_reward_pixel(state_batch, action_batch_onehot, next_state_batch)
+        if config().sim.agent.step == "RF":
+            r_i = self.intrinsic_reward_RF(state_batch, action_batch_onehot, next_state_batch)
+        if not config().sim.agent.curious_only:
+            reward_batch = reward_batch + r_i
+        else:
+            reward_batch = r_i
 
         actions_by_cal = reward_batch + (self.gamma * Qsa_prime_targets)
 
