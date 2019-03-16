@@ -75,8 +75,8 @@ class CuriousACAgent(ACAgent):
         actions = action_batch.unsqueeze(dim=1).long()
         action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
         action_batch.scatter_(1, actions, 1)
-        state_batch = state_batch
-        next_state_batch = next_state_batch
+        state_batch = state_batch.unsqueeze(dim=1)
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
 
         loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
 
@@ -164,8 +164,8 @@ class CuriousDQNAgent(DQNAgent):
             return action
 
     def intrinsic_reward(self, prev_state, action, next_state):
-        prev_state = prev_state
-        next_state = next_state
+        prev_state = prev_state.unsqueeze(dim=1)
+        next_state = next_state.unsqueeze(dim=1)
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
@@ -178,8 +178,8 @@ class CuriousDQNAgent(DQNAgent):
         action_batch_onehot = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
         action_batch_onehot.scatter_(1, action_batch, 1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
-        state_batch = state_batch
-        next_state_batch = next_state_batch
+        state_batch = state_batch.unsqueeze(dim=1)
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
 
         policy_output = self.policy_net(state_batch)  # value function for all actions size (batch, n_actions)
         action_by_policy = policy_output.gather(1, action_batch)  # only keep the value function for the given action

@@ -4,9 +4,10 @@ import torch.nn.functional as F
 from utils import config, output_size_conv2d
 
 conv_layers = [
-    nn.Conv2d(config().sim.agent.memory, 16, 4, stride=2),
+    nn.Conv2d(1, 5, 3),
     nn.ReLU(),
-    nn.Conv2d(16, 32, 2),
+    nn.Conv2d(5, 5, 3),
+    nn.MaxPool2d(2),
     nn.ReLU(),
 ]
 
@@ -28,11 +29,13 @@ class Critic(nn.Module):
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim + 4, 256),
+                    nn.Linear(out_dim[0] * out_dim[1] * 5 + 4, 128),
                     nn.ReLU(),
-                    nn.Linear(256, 64),
+                    nn.Linear(128, 64),
                     nn.ReLU(),
-                    nn.Linear(64, 1),
+                    nn.Linear(64, 16),
+                    nn.ReLU(),
+                    nn.Linear(16, 1)
             )
 
     def forward(self, x, action):
@@ -43,7 +46,7 @@ class Critic(nn.Module):
         Returns:
         """
         if config().sim.env.state.type == "simple":
-            x = x.reshape(x.size(0), -1)
+            x = x.reshape(x.size(0), x.size(2))
             out = torch.cat([x, action], dim=1)
             return self.simple_fc(out)
 
@@ -69,16 +72,18 @@ class Actor(nn.Module):
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim, 256),
+                    nn.Linear(out_dim[0] * out_dim[1] * 5, 128),
                     nn.ReLU(),
-                    nn.Linear(256, 64),
+                    nn.Linear(128, 64),
                     nn.ReLU(),
-                    nn.Linear(64, 4),
+                    nn.Linear(64, 16),
+                    nn.ReLU(),
+                    nn.Linear(16, 4)
             )
 
     def forward(self, x):
         if config().sim.env.state.type == "simple":
-            x = x.reshape(x.size(0), -1)
+            x = x.reshape(x.size(0), x.size(2))
             return F.gumbel_softmax(self.simple_fc(x), tau=config().learning.gumbel_softmax.tau)
 
         out = self.conv(x)
