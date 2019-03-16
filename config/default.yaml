@@ -21,6 +21,7 @@ sim:  # simulations
     step: ICM  # [pixel, RF, ICM]
     curious_only: No
 
+
 learning:
   cuda: Yes
   save_models: Yes

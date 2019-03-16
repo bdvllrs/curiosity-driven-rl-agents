@@ -52,6 +52,7 @@ is_test = False
 cycle_count = 1
 train_cycle_length = config().metrics.train_cycle_length
 test_cycle_length = config().metrics.test_cycle_length
+memory_size = config().sim.agent.memory
 train_count = 0
 test_count = 0
 
@@ -60,16 +61,24 @@ for e in tqdm(range(num_episodes)):
     state = env.reset()
     terminal = False
 
+    state_memory = [env.get_blank_state()] * (memory_size - 1)
+    state_memory.append(state)
+
     expected_return = 0
     discount = 1
 
     # Do an episode
     while not terminal:
-        action = possible_actions[agent.draw_action(state, is_test)]
+        action = possible_actions[agent.draw_action(state_memory[:], is_test)]
         # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
         # env.plot()
-        next_state, reward, terminal = env.step(action)
-        experience_replay.add(state, next_state, action_to_number[action], reward)
+        state, reward, terminal = env.step(action)
+
+        prev_state = state_memory[:]
+        state_memory.pop(0)  # Remove the oldest frame
+        state_memory.append(state)
+
+        experience_replay.add(prev_state[:], state_memory[:], action_to_number[action], reward)
 
         expected_return += discount * reward
         discount *= gamma
@@ -83,8 +92,6 @@ for e in tqdm(range(num_episodes)):
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
             metrics.add_losses(*agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
-
-        state = next_state
 
     metrics.add_return(expected_return)
 

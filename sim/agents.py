@@ -65,7 +65,7 @@ class ACAgent:
 
         with torch.no_grad():
             p = np.random.random()
-            state = torch.FloatTensor(state).to(self.device).unsqueeze(dim=0).unsqueeze(dim=1)
+            state = torch.FloatTensor([state]).to(self.device)
             if p > eps_threshold:
                 action_probs = self.actor(state).detach().cpu().numpy()
                 action = np.argmax(action_probs[0])
@@ -108,12 +108,10 @@ class ACAgent:
         return loss_critic, actor_loss
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
-        state_batch = state_batch.unsqueeze(dim=1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
         actions = action_batch.unsqueeze(dim=1).long()
         action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
         action_batch.scatter_(1, actions, 1)
-        next_state_batch = next_state_batch.unsqueeze(dim=1)
 
         loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
 
@@ -210,7 +208,7 @@ class DQNAgent:
         self.steps_done += 1
         with torch.no_grad():
             p = np.random.random()
-            state = torch.tensor([state]).to(self.device).unsqueeze(dim=0).float()
+            state = torch.tensor([state]).to(self.device).float()
             if p > eps_threshold:
                 action_probs = self.policy_net(state).detach().cpu().numpy()
                 action = np.argmax(action_probs[0])

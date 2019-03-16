@@ -1,1 +1,1 @@
-# Curiosity Driven Rl Agents
+# Curiosity Driven RL Agents

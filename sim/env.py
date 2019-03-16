@@ -56,13 +56,15 @@ class Env:
     def _add_state(self, board):
         self.state_memory.append(self._board_to_image(board))
 
-    def _get_state_hard(self, board):
+    def _get_state_hard(self, board, blank):
         x, y = self.agent_position
         stop_right = False
         stop_left = False
         stop_top = False
         stop_bottom = False
         state = np.zeros_like(board)
+        if blank:
+            return state
         state[x, y] = board[x, y]
         for k in range(1, self.size):
             if not stop_right:
@@ -91,22 +93,26 @@ class Env:
                     stop_bottom = True
         return state
 
-    def _get_state_progressive(self, board):
+    def _get_state_progressive(self, board, blank):
         x, y = self.agent_position
         state = np.zeros_like(board)
+        if blank:  # Useful in the beginning when there are no frames in the memory
+            return state
         state[x, y] = board[x, y]
         depth_of_field = config().sim.env.state.depth_of_field
         positions = [self.agent_position]
         recursive_walk(positions, state, board, depth_of_field)
         return state
 
-    def _get_state_simple(self, board):
+    def _get_state_simple(self, board, blank):
         x, y = self.agent_position
         stop_right = False
         stop_left = False
         stop_top = False
         stop_bottom = False
         state = np.zeros(4)
+        if blank:
+            return state
         for k in range(1, self.size):
             if not stop_right:
                 if board[x, y + k] == 0.3:
@@ -138,12 +144,12 @@ class Env:
                     stop_bottom = True
         return state
 
-    def _get_state(self, board):
+    def _get_state(self, board, blank=False):
         if config().sim.env.state.type == "progressive":
-            return self._get_state_progressive(board)
+            return self._get_state_progressive(board, blank)
         elif config().sim.env.state.type == "simple":
-            return self._get_state_simple(board)
-        return self._get_state_hard(board)
+            return self._get_state_simple(board, blank)
+        return self._get_state_hard(board, blank)
 
     def _get_possible_actions(self):
         x, y = self.agent_position
@@ -167,6 +173,9 @@ class Env:
         if action == "left":
             return x, y - 1
         return x, y + 1
+
+    def get_blank_state(self):
+        return self._get_state(self._get_board(), blank=True)
 
     def reset(self):
         self.episode += 1
