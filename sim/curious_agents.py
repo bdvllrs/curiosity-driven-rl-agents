@@ -10,7 +10,7 @@ from .agents import ACAgent, DQNAgent
 from utils import config
 from .utils import hard_update, soft_update
 from .models.dqn import DQNUnit
-from .models.icm import ICMFeatures, ICMForward, ICMInverseModel
+from .models.icm import ICMFeatures, ICMForward, ICMInverseModel, Forward_pixel
 
 
 class CuriousACAgent(ACAgent):
@@ -21,13 +21,17 @@ class CuriousACAgent(ACAgent):
     def __init__(self, device):
         super(CuriousACAgent, self).__init__(device)
 
-        self.features_icm = ICMFeatures().to(self.device)
-        self.forward_icm = ICMForward().to(self.device)
-        self.inverse_model_icm = ICMInverseModel().to(self.device)
-        self.features_icm_optimizer = Adam(self.features_icm.parameters(), lr=config().learning.icm.features.lr)
-        self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
-        self.inverse_model_icm_optimizer = Adam(self.inverse_model_icm.parameters(),
-                                                lr=config().learning.icm.inverse_model.lr)
+        if config().sim.agent.step =="ICM":
+            self.features_icm = ICMFeatures().to(self.device)
+            self.forward_icm = ICMForward().to(self.device)
+            self.inverse_model_icm = ICMInverseModel().to(self.device)
+            self.features_icm_optimizer = Adam(self.features_icm.parameters(), lr=config().learning.icm.features.lr)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
+            self.inverse_model_icm_optimizer = Adam(self.inverse_model_icm.parameters(),
+                                                    lr=config().learning.icm.inverse_model.lr)
+        if config().sim.agent.step == "pixel":
+            self.forward_icm = Forward_pixel().to(self.device)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
 
         self.eta = config().learning.icm.eta
         self.beta = config().learning.icm.beta
@@ -47,7 +51,19 @@ class CuriousACAgent(ACAgent):
 
         return action
 
-    def intrinsic_reward(self, prev_state, action, next_state):
+    def intrinsic_reward_pixel(self, prev_state, action, next_state):
+        predicted_state = self.forward_icm(action, prev_state)
+        if config().sim.env.state.type != "simple":
+            next_state = next_state.view(next_state.size(0), -1)
+        return self.eta / 2 * F.mse_loss(next_state, predicted_state)
+
+    def intrinsic_reward_RF(self, prev_state, action, next_state):
+        prev_features = self.features_icm(prev_state)
+        next_features = self.features_icm(next_state)
+        predicted_features = self.forward_icm(action, prev_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features)
+
+    def intrinsic_reward_ICM(self, prev_state, action, next_state):
         prev_features = self.features_icm(prev_state)
         next_features = self.features_icm(next_state)
         predicted_features = self.forward_icm(action, prev_features)
@@ -73,28 +89,47 @@ class CuriousACAgent(ACAgent):
         self.critic.eval()
 
         # Learning ICM
-        self.features_icm_optimizer.zero_grad()
-        self.forward_icm_optimizer.zero_grad()
-        self.inverse_model_icm_optimizer.zero_grad()
+        if config().sim.agent.step == "ICM":
+            self.features_icm_optimizer.zero_grad()
+            self.forward_icm_optimizer.zero_grad()
+            self.inverse_model_icm_optimizer.zero_grad()
+            feature_states = self.features_icm(state_batch)
+            feature_next_states = self.features_icm(next_state_batch)
 
-        feature_states = self.features_icm(state_batch)
-        feature_next_states = self.features_icm(next_state_batch)
+            predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
+            predicted_feature_next_states = self.forward_icm(action_batch, feature_states)
 
-        predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
-        predicted_feature_next_states = self.forward_icm(action_batch, feature_states)
+            loss_predictor = F.mse_loss(predicted_actions, action_batch)
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
+            loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * actor_loss
+            loss.backward()
 
-        loss_predictor = F.mse_loss(predicted_actions, action_batch)
-        loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
-        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * actor_loss
-        loss.backward()
+            self.features_icm_optimizer.step()
+            self.forward_icm_optimizer.step()
+            self.inverse_model_icm_optimizer.step()
+            self.actor_optimizer.step()
+            self.critic.train()
 
-        self.features_icm_optimizer.step()
-        self.forward_icm_optimizer.step()
-        self.inverse_model_icm_optimizer.step()
-        self.actor_optimizer.step()
-        self.critic.train()
+            self.update()
 
-        self.update()
+        if config().sim.agent.step == "pixel":
+            self.forward_icm_optimizer.zero_grad()
+            predicted_next_states = self.forward_icm(action_batch, state_batch)
+
+            if config().sim.env.state.type != "simple":
+                next_state_batch = next_state_batch.view(next_state_batch.size(0), -1)
+
+            loss_next_state_predictor = F.mse_loss(predicted_next_states, next_state_batch)
+            loss = loss_next_state_predictor
+            loss.backward()
+
+            self.forward_icm_optimizer.step()
+            self.actor_optimizer.step()
+            self.critic.train()
+
+            self.update()
+
+
 
         return loss_critic.detach().cpu().item(), loss.detach().cpu().item()
 

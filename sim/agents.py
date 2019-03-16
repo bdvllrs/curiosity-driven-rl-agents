@@ -82,8 +82,20 @@ class ACAgent:
         if config().learning.gumbel_softmax.use:
             action_batch = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
 
-        reward_batch = reward_batch + self.intrinsic_reward(state_batch, action_batch, next_state_batch)
+        if config().sim.agent.curious:
+            if config().sim.agent.step == "ICM":
+                r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
+            if config().sim.agent.step == "pixel":
+                r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
+            if config().sim.agent.step == "RF":
+                r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
+        else:
+            r_i = 0
 
+        if not config().sim.agent.curious_only:
+            reward_batch = reward_batch + r_i
+        else:
+            reward_batch = r_i
         predicted_next_actions = self.actor_target(next_state_batch)
 
         y = reward_batch + self.gamma * self.critic_target(next_state_batch, predicted_next_actions)

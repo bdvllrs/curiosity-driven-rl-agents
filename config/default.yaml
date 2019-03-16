@@ -18,7 +18,9 @@ sim:  # simulations
   agent:
     type: dqn  # in ["dqn", "AC"] DQN or Actor-Critic
     curious: Yes  # Use ICM Module?
-    memory: 4  # Number of frames to remember (number of frames in the state)
+    step: ICM  # [pixel, RF, ICM]
+    curious_only: No
+
 
 learning:
   cuda: Yes
