@@ -18,10 +18,9 @@ class DQNUnit(nn.Module):
             board_size = config().sim.env.size
             n_actions = 4
             conv_layers = [
-                nn.Conv2d(1, 5, 3),
+                nn.Conv2d(config().sim.agent.memory, 16, 4, stride=2),
                 nn.ReLU(),
-                nn.Conv2d(5, 5, 3),
-                nn.MaxPool2d(2),
+                nn.Conv2d(16, 32, 2),
                 nn.ReLU(),
             ]
             out_dim = (board_size, board_size)
@@ -30,14 +29,14 @@ class DQNUnit(nn.Module):
                     out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim[0] * out_dim[1] * 5, 32),
+                    nn.Linear(out_dim, 32),
                     nn.ReLU(),
                     nn.Linear(32, n_actions),
             )
 
     def forward(self, x):
         if config().sim.env.state.type == "simple":
-            x = x.reshape(x.size(0), x.size(2))
+            x = x.reshape(x.size(0), -1)
             return self.simple_fc(x)
 
         x = x.unsqueeze(dim=1)

@@ -14,14 +14,16 @@ def output_size_conv2d_layer(height, width, layer):
     dilation = (dilation, dilation) if type(dilation) == int else dilation
     height_out = floor((height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) / stride[0] + 1)
     width_out = floor((width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) / stride[1] + 1)
-    return height_out, width_out
+    return height_out, width_out, layer.out_channels
 
 
 def output_size_conv2d(out_dim, layers):
+    height, width = out_dim
+    out_channels = 1
     for layer in layers:
         if type(layer) != ReLU:
-            out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
-    return out_dim
+            height, width, out_channels = output_size_conv2d_layer(height, width, layer)
+    return height * width * out_channels
 
 
 def save_figs(train_returns, test_returns, train_loss_critic, train_loss_actor, prefix=""):

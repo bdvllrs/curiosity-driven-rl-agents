@@ -10,10 +10,9 @@ from utils import config, output_size_conv2d
 __all__ = ["ICMFeatures", "ICMInverseModel", "ICMForward"]
 
 conv_layers = [
-    nn.Conv2d(1, 5, 3),
+    nn.Conv2d(config().sim.agent.memory, 16, 4, stride=2),
     nn.ReLU(),
-    nn.Conv2d(5, 5, 3),
-    nn.MaxPool2d(2),
+    nn.Conv2d(16, 32, 2),
     nn.ReLU(),
 ]
 
@@ -35,7 +34,7 @@ class ICMFeatures(nn.Module):
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim[0] * out_dim[1] * 5, config().learning.icm.features.dim),
+                    nn.Linear(out_dim, config().learning.icm.features.dim),
                     nn.ReLU()
             )
 
