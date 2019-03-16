@@ -81,25 +81,11 @@ class ACAgent:
     def get_losses(self, state_batch, next_state_batch, action_batch, reward_batch):
         if config().learning.gumbel_softmax.use:
             action_batch = F.gumbel_softmax(action_batch, tau=config().learning.gumbel_softmax.tau)
-        if config().sim.agent.curious:
-            if config().sim.agent.step == "ICM":
-                r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
-            if config().sim.agent.step == "pixel":
-                r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
-            if config().sim.agent.step == "RF":
-                r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
-        else:
-            r_i = 0
-        if not config().sim.agent.curious_only:
-            reward_batch = reward_batch + r_i
-        else:
-            reward_batch = r_i
         predicted_next_actions = self.actor_target(next_state_batch)
         y = reward_batch + self.gamma * self.critic_target(next_state_batch, predicted_next_actions)
         loss_critic = self.critic_criterion(y, self.critic(state_batch, action_batch))
         actor_loss = -self.critic(state_batch, self.actor(state_batch))
         actor_loss = actor_loss.mean()
-
         return loss_critic, actor_loss
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):

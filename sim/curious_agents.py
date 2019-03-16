@@ -82,6 +82,16 @@ class CuriousACAgent(ACAgent):
         action_batch.scatter_(1, actions, 1)
         state_batch = state_batch.unsqueeze(dim=1)
         next_state_batch = next_state_batch.unsqueeze(dim=1)
+        if config().sim.agent.step == "ICM":
+            r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
+        if config().sim.agent.step == "pixel":
+            r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
+        if config().sim.agent.step == "RF":
+            r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
+        if not config().sim.agent.curious_only:
+            reward_batch = reward_batch + r_i
+        else:
+            reward_batch = r_i
 
         loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
 
@@ -136,7 +146,7 @@ class CuriousACAgent(ACAgent):
 
 
 
-        # Learning ICM
+        # Learning RF
         if config().sim.agent.step == "RF":
             self.forward_icm_optimizer.zero_grad()
             with torch.no_grad():
@@ -164,17 +174,44 @@ class CuriousDQNAgent(DQNAgent):
     def __init__(self, device):
         super(CuriousDQNAgent, self).__init__(device)
 
-        self.features_icm = ICMFeatures().to(self.device)
-        self.forward_icm = ICMForward().to(self.device)
-        self.inverse_model_icm = ICMInverseModel().to(self.device)
-        self.features_icm_optimizer = Adam(self.features_icm.parameters(), lr=config().learning.icm.features.lr)
-        self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
-        self.inverse_model_icm_optimizer = Adam(self.inverse_model_icm.parameters(),
-                                                lr=config().learning.icm.inverse_model.lr)
+        if config().sim.agent.step =="ICM":
+            self.features_icm = ICMFeatures().to(self.device)
+            self.forward_icm = ICMForward().to(self.device)
+            self.inverse_model_icm = ICMInverseModel().to(self.device)
+            self.features_icm_optimizer = Adam(self.features_icm.parameters(), lr=config().learning.icm.features.lr)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
+            self.inverse_model_icm_optimizer = Adam(self.inverse_model_icm.parameters(),
+                                                    lr=config().learning.icm.inverse_model.lr)
+        if config().sim.agent.step == "pixel":
+            self.forward_icm = Forward_pixel().to(self.device)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
+
+        if config().sim.agent.step == "RF":
+            self.features_icm = ICMFeatures().to(self.device)
+            self.forward_icm = ICMForward().to(self.device)
+            self.forward_icm_optimizer = Adam(self.forward_icm.parameters(), lr=config().learning.icm.forward_model.lr)
 
         self.eta = config().learning.icm.eta
         self.beta = config().learning.icm.beta
         self.lbd = config().learning.icm.lbd
+
+    def intrinsic_reward_pixel(self, prev_state, action, next_state):
+        predicted_state = self.forward_icm(action, prev_state)
+        next_state = next_state.view(next_state.size(0), -1)
+        return self.eta / 2 * F.mse_loss(next_state, predicted_state, reduction = "none").mean(1).unsqueeze(1)
+
+    def intrinsic_reward_RF(self, prev_state, action, next_state):
+        with torch.no_grad():
+            prev_features = self.features_icm(prev_state)
+            next_features = self.features_icm(next_state)
+        predicted_features = self.forward_icm(action, prev_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
+
+    def intrinsic_reward_ICM(self, prev_state, action, next_state):
+        prev_features = self.features_icm(prev_state)
+        next_features = self.features_icm(next_state)
+        predicted_features = self.forward_icm(action, prev_features)
+        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
     def draw_action(self, state, test=False):
         """
@@ -189,13 +226,6 @@ class CuriousDQNAgent(DQNAgent):
             action = np.argmax(action_probs[0])
             return action
 
-    def intrinsic_reward(self, prev_state, action, next_state):
-        prev_state = prev_state.unsqueeze(dim=1)
-        next_state = next_state.unsqueeze(dim=1)
-        prev_features = self.features_icm(prev_state)
-        next_features = self.features_icm(next_state)
-        predicted_features = self.forward_icm(action, prev_features)
-        return self.eta / 2 * F.mse_loss(next_features, predicted_features, reduction = "none").mean(1).unsqueeze(1)
 
     def learn(self, state_batch, next_state_batch, action_batch, reward_batch):
         self.policy_optimizer.zero_grad()
@@ -204,6 +234,18 @@ class CuriousDQNAgent(DQNAgent):
         action_batch_onehot = torch.zeros(action_batch.size(0), 4, dtype=torch.float).to(self.device)
         action_batch_onehot.scatter_(1, action_batch, 1)
         reward_batch = reward_batch.reshape(reward_batch.size(0), 1)
+
+        if config().sim.agent.step == "ICM":
+            r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
+        if config().sim.agent.step == "pixel":
+            r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
+        if config().sim.agent.step == "RF":
+            r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
+        if not config().sim.agent.curious_only:
+            reward_batch = reward_batch + r_i
+        else:
+            reward_batch = r_i
+
         state_batch = state_batch.unsqueeze(dim=1)
         next_state_batch = next_state_batch.unsqueeze(dim=1)
 
@@ -218,24 +260,53 @@ class CuriousDQNAgent(DQNAgent):
 
         dqn_loss = F.mse_loss(action_by_policy, actions_by_cal)
 
-        self.features_icm_optimizer.zero_grad()
-        self.forward_icm_optimizer.zero_grad()
-        self.inverse_model_icm_optimizer.zero_grad()
+        if config().sim.agent.step == "ICM":
 
-        feature_states = self.features_icm(state_batch)
-        feature_next_states = self.features_icm(next_state_batch)
+            self.features_icm_optimizer.zero_grad()
+            self.forward_icm_optimizer.zero_grad()
+            self.inverse_model_icm_optimizer.zero_grad()
 
-        predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
-        predicted_feature_next_states = self.forward_icm(action_batch_onehot, feature_states)
+            feature_states = self.features_icm(state_batch)
+            feature_next_states = self.features_icm(next_state_batch)
 
-        loss_predictor = F.mse_loss(predicted_actions, action_batch_onehot)
-        loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
-        loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * dqn_loss
-        loss.backward()
+            predicted_actions = self.inverse_model_icm(feature_states, feature_next_states)
+            predicted_feature_next_states = self.forward_icm(action_batch_onehot, feature_states)
 
-        self.features_icm_optimizer.step()
-        self.forward_icm_optimizer.step()
-        self.inverse_model_icm_optimizer.step()
+            loss_predictor = F.mse_loss(predicted_actions, action_batch_onehot)
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
+            loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * dqn_loss
+            loss.backward()
+
+            self.features_icm_optimizer.step()
+            self.forward_icm_optimizer.step()
+            self.inverse_model_icm_optimizer.step()
+
+        if config().sim.agent.step == "RF":
+            self.forward_icm_optimizer.zero_grad()
+
+            with torch.no_grad():
+                feature_states = self.features_icm(state_batch)
+                feature_next_states = self.features_icm(next_state_batch)
+
+            predicted_feature_next_states = self.forward_icm(action_batch_onehot, feature_states)
+
+            loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, feature_next_states)
+            loss = loss_next_state_predictor + self.lbd * dqn_loss
+            loss.backward()
+
+            self.forward_icm_optimizer.step()
+
+        if config().sim.agent.step == "pixel":
+            self.forward_icm_optimizer.zero_grad()
+
+            predicted_next_states = self.forward_icm(action_batch_onehot, state_batch)
+
+            loss_next_state_predictor = F.mse_loss(predicted_next_states, next_state_batch)
+            loss = loss_next_state_predictor + self.lbd * dqn_loss
+            loss.backward()
+
+            self.forward_icm_optimizer.step()
+
 
         for param in self.policy_net.parameters():
             param.grad.data.clamp_(-1, 1)

@@ -40,7 +40,6 @@ class ICMFeatures(nn.Module):
 
     def forward(self, states):
         if config().sim.env.state.type == "simple":
-            states = states.reshape(states.size(0), states.size(2))
             return self.simple_fc(states)
         out = self.conv(states)
         out = out.view(states.size(0), -1)
@@ -63,6 +62,8 @@ class ICMInverseModel(nn.Module):
         )
 
     def forward(self, features, next_features):
+        features = features.view(features.size(0), -1)
+        next_features = next_features.view(next_features.size(0), -1)
         in_features = torch.cat((features, next_features), dim=1)
         return self.fc(in_features)
 
@@ -81,7 +82,8 @@ class ICMForward(nn.Module):
         )
 
     def forward(self, action, features):
-        in_features = torch.cat((action, features), dim=1)
+        features = features.view(features.size(0), -1)
+        in_features = torch.cat((action.float(), features), dim=1)
         return self.fc(in_features)
 
 
