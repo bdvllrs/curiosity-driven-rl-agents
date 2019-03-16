@@ -16,9 +16,8 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
         agent = A3CAgent(idx, device, config, shared_model)
     agent.train()
 
-    metrics = Metrics(config)
-    metrics.add("returns")
-    metrics.add("loss")
+    returns = []
+    losses = []
 
     env = Env()
 
@@ -66,15 +65,16 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             with lock:
                 counter.value += 1
 
-            if not counter.value % config.metrics.train_cycle_length:
-                metrics.save("returns", config.metrics.train_cycle_length, f"returns_agent_{idx}",
-                             "episodes", "Expected Return")
-                metrics.save("loss", config.metrics.train_cycle_length, f"losses_agent_{idx}",
-                             "episodes", "A3C Loss")
-
-        metrics.append("returns", sum(rewards))
         loss = agent.learn(np.array(states), values, log_probs, probs, entropies, rewards, terminal)
-        metrics.append("loss", loss)
+
+        returns.append(sum(rewards))
+        losses.append(loss)
+
+        if not e % config.metrics.train_cycle_length:
+            if config.sim.output.save_figs:
+                filepath = config.filepath + f"/metrics_agent_{idx}"
+                np.save(filepath + "_returns.npy", returns)
+                np.save(filepath + "_losses.npy", losses)
 
 
 def test(idx, config, logger, device, shared_model, shared_icm, counter):
