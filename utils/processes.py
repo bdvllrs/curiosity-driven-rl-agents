@@ -75,6 +75,8 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
                 filepath = config.filepath + f"/metrics_agent_{idx}"
                 np.save(filepath + "_returns.npy", returns)
                 np.save(filepath + "_losses.npy", losses)
+                if idx == 1:
+                    env.make_anim(config.filepath + "/train-")
 
 
 def test(idx, config, logger, device, shared_model, shared_icm, counter):
@@ -86,8 +88,7 @@ def test(idx, config, logger, device, shared_model, shared_icm, counter):
         agent = A3CAgent(idx, device, config, shared_model)
     agent.eval()
 
-    metrics = Metrics(config)
-    metrics.add("returns")
+    returns = []
 
     env = Env()
 
@@ -111,8 +112,10 @@ def test(idx, config, logger, device, shared_model, shared_icm, counter):
 
         state = next_state
 
-    metrics.append("returns", expected_return)
+    returns.append(expected_return)
 
     if not counter.value % config.metrics.test_cycle_length:
-        metrics.save("returns", config.metrics.test_cycle_length, f"returns_test",
-                     "episodes", "Expected Return")
+        if config.sim.output.save_figs:
+            filepath = config.filepath + f"/metrics_"
+            np.save(filepath + "_returns_test.npy", returns)
+            env.make_anim(config.filepath + "/test-")
