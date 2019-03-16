@@ -227,7 +227,7 @@ class CuriousA3CAgent(A3CAgent):
             policy_loss = policy_loss - log_probs[i] * gae.detach() - self.config.learning.entropy_coef * entropies[i]
 
         self.ac_optimizer.zero_grad()
-        loss = policy_loss + self.config.learning.value_loss_coef * value_loss
+        loss_ac = policy_loss + self.config.learning.value_loss_coef * value_loss
 
         # Learning ICM
         self.icm.zero_grad()
@@ -241,7 +241,7 @@ class CuriousA3CAgent(A3CAgent):
                                                                                   action_batch)
             loss_predictor = F.mse_loss(predicted_actions, action_batch)
             loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
-            loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * loss
+            loss = self.beta * loss_next_state_predictor + (1 - self.beta) * loss_predictor + self.lbd * loss_ac
 
         if config().sim.agent.step == "RF":
             predicted_feature_next, feature_next = self.icm(state_batch, next_state_batch,
@@ -263,7 +263,7 @@ class CuriousA3CAgent(A3CAgent):
         self.ac_optimizer.step()
         self.icm_optimizer.step()
 
-        return loss.detach().cpu().item()
+        return loss.detach().cpu().item(), loss_ac.detach().item(), loss_next_state_predictor.detach().item(), loss_predictor.detach().item()
 
     def save(self, name):
         """
