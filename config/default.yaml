@@ -18,6 +18,8 @@ sim:  # simulations
   agent:
     type: dqn  # in ["dqn", "AC"] DQN or Actor-Critic
     curious: Yes  # Use ICM Module?
+    step: ICM  # [pixel, RF, ICM]
+    curious_only: No
 
 learning:
   cuda: Yes
