@@ -16,6 +16,7 @@ sim:  # simulations
 
   agent:
     curious: Yes  # Use ICM Module?
+    step: ICM  # In RF, ICM and pixel
 
 learning:
   cuda: No
