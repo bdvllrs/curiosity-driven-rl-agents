@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-import random
+import numpy as np
 import torch
 from tqdm import tqdm
 from sim import Env, ACAgent, CuriousACAgent, DQNAgent, CuriousDQNAgent
@@ -63,6 +63,13 @@ for e in tqdm(range(num_episodes)):
     expected_return = 0
     discount = 1
 
+    returns_intra = []
+    returns = []
+    losses_critic = []
+    losses_forward = []
+    losses_all = []
+
+
     # Do an episode
     while not terminal:
         action = possible_actions[agent.draw_action(state, is_test)]
@@ -82,11 +89,34 @@ for e in tqdm(range(num_episodes)):
             next_state_batch = torch.FloatTensor(next_state_batch).to(device)
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
-            metrics.add_losses(*agent.learn(state_batch, next_state_batch, action_batch, reward_batch))
+            loss_critic, loss,loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
+            metrics.add_losses(loss_critic)
+
+
+            print(r_i)
+
+            returns_intra.append(r_i)
+            returns.append(reward_batch)
+            losses_critic.append(loss_critic)
+            losses_forward.append(loss_next_state_predictor)
+            losses_all.append(loss)
+
 
         state = next_state
 
+
+
+
     metrics.add_return(expected_return)
+
+    if not e % config().metrics.train_cycle_length:
+        if config().sim.output.save_figs:
+            np.save(filepath + "/returns_intra.npy", returns_intra)
+            np.save(filepath + "/returns.npy", returns)
+            np.save(filepath + "/losses_all.npy", losses_all)
+            np.save(filepath + "/losses_critic.npy", losses_critic)
+            np.save(filepath + "/losses_forward.npy", losses_forward)
+            #env.make_anim(filepath + "/train-")
 
     if config().sim.output.save_figs and not is_test and not (train_count % config().sim.output.save_every):
         env.make_anim(date + "/train-")

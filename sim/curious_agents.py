@@ -1,15 +1,10 @@
-import math
-import random
-
 import torch
 from torch.nn import functional as F
 from torch.optim import Adam
 import numpy as np
-
 from .agents import ACAgent, DQNAgent
 from utils import config
-from .utils import hard_update, soft_update
-from .models.dqn import DQNUnit
+from .utils import soft_update
 from .models.icm import ICMFeatures, ICMForward, ICMInverseModel, Forward_pixel
 
 
@@ -167,7 +162,8 @@ class CuriousACAgent(ACAgent):
 
 
 
-        return loss_critic.detach().cpu().item(), loss.detach().cpu().item()
+        return loss_critic.detach().cpu().item(), loss.detach().cpu().item(), \
+               loss_next_state_predictor.detach().cpu().item(), r_i.detach().cpu().item()
 
 
 class CuriousDQNAgent(DQNAgent):
@@ -315,4 +311,5 @@ class CuriousDQNAgent(DQNAgent):
             soft_update(self.target_net, self.policy_net)
 
         self.n_iter += 1
-        return loss.detach().cpu().item(), None
+        return dqn_loss.detach().cpu().item(), loss.detach().cpu().item(), \
+               loss_next_state_predictor.detach().cpu().item(), r_i.detach().cpu().item()
