@@ -1,11 +1,10 @@
-import math
 import torch
 from torch.nn import functional as F
 from torch.optim import Adam
 
 from sim.models.icm import ICM
 
-from .models.actor_critic import ActorCritic
+from .models.actor_critic import ActorCritic, ConvLayers
 
 
 class A3CAgent:
@@ -22,7 +21,10 @@ class A3CAgent:
         self.update_frequency = self.config.learning.update_frequency
         self.device = device
 
-        self.ac_model = ActorCritic().to(self.device)
+        self.conv_model = None
+        if self.config.sim.env.state.type != "simple":
+            self.conv_model = ConvLayers()
+        self.ac_model = ActorCritic(self.conv_model).to(self.device)
 
         self.ac_optimizer = torch.optim.Adam(self.shared_model.parameters(), lr=self.config.learning.lr)
 
@@ -139,7 +141,7 @@ class CuriousA3CAgent(A3CAgent):
     def __init__(self, idx, device, config, shared_model, shared_icm):
         super(CuriousA3CAgent, self).__init__(idx, device, config, shared_model)
 
-        self.icm = ICM()
+        self.icm = ICM(self.conv_model)
         self.icm_optimizer = Adam(self.icm.parameters(), lr=self.config.learning.icm.lr)
 
         self.shared_icm = shared_icm

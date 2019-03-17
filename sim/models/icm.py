@@ -5,13 +5,13 @@ Pathak et al. Intrinsic Curiosity Module
 import torch
 import torch.nn as nn
 
-from utils import config, output_size_conv2d
+from utils import config
 
 __all__ = ["ICMFeatures", "ICMInverseModel", "ICMForward", "ICM"]
 
 
 class ICMFeatures(nn.Module):
-    def __init__(self):
+    def __init__(self, conv_model=None):
         super(ICMFeatures, self).__init__()
         if config().sim.env.state.type == "simple":
             feat_dim = config().learning.icm.feature_dim
@@ -23,15 +23,8 @@ class ICMFeatures(nn.Module):
                     nn.Linear(feat_dim, feat_dim)
             )
         else:
-            board_size = config().sim.env.size
-            conv_layers = [
-                nn.Conv2d(1, 16, 4, stride=2),
-                nn.ReLU(),
-                nn.Conv2d(16, 32, 2),
-                nn.ReLU(),
-            ]
-            out_dim = output_size_conv2d((board_size, board_size), conv_layers)
-            self.conv = nn.Sequential(*conv_layers)
+            out_dim = conv_model.out_dim
+            self.conv = conv_model
             self.fc = nn.Sequential(
                     nn.Linear(out_dim, config().learning.icm.feature_dim),
                     nn.ReLU()
@@ -85,9 +78,9 @@ class ICMForward(nn.Module):
 
 
 class ICM(nn.Module):
-    def __init__(self):
+    def __init__(self, conv_model=None):
         super(ICM, self).__init__()
-        self.features_model = ICMFeatures()
+        self.features_model = ICMFeatures(conv_model)
         self.forward_model = ICMForward()
         self.inverse_model = ICMInverseModel()
 
