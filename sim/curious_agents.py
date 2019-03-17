@@ -163,7 +163,8 @@ class CuriousACAgent(ACAgent):
 
 
         return loss_critic.detach().cpu().item(), loss.detach().cpu().item(), \
-               loss_next_state_predictor.detach().cpu().item(), r_i.detach().cpu().item()
+               loss_next_state_predictor.detach().cpu().item(), \
+               r_i
 
 
 class CuriousDQNAgent(DQNAgent):

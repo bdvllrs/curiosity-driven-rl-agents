@@ -55,6 +55,12 @@ test_cycle_length = config().metrics.test_cycle_length
 train_count = 0
 test_count = 0
 
+returns_intra = []
+returns = []
+losses_critic = []
+losses_forward = []
+losses_all = []
+
 for e in tqdm(range(num_episodes)):
     metrics = train_metrics if not is_test else test_metrics
     state = env.reset()
@@ -62,12 +68,6 @@ for e in tqdm(range(num_episodes)):
 
     expected_return = 0
     discount = 1
-
-    returns_intra = []
-    returns = []
-    losses_critic = []
-    losses_forward = []
-    losses_all = []
 
 
     # Do an episode
@@ -83,20 +83,20 @@ for e in tqdm(range(num_episodes)):
 
         # Do some learning
         batch = experience_replay.get_batch(batch_size)
+
+
         if not is_test and batch is not None:
             state_batch, next_state_batch, action_batch, reward_batch = batch
             state_batch = torch.FloatTensor(state_batch).to(device)
             next_state_batch = torch.FloatTensor(next_state_batch).to(device)
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
-            loss_critic, loss,loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
+            loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
             metrics.add_losses(loss_critic)
 
 
-            print(r_i)
-
-            returns_intra.append(r_i)
-            returns.append(reward_batch)
+            returns_intra.append(r_i.detach().numpy())
+            returns.append(reward_batch.detach().numpy())
             losses_critic.append(loss_critic)
             losses_forward.append(loss_next_state_predictor)
             losses_all.append(loss)
