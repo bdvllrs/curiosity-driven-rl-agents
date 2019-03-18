@@ -168,6 +168,20 @@ class CuriousACAgent(ACAgent):
                loss_next_state_predictor.detach().cpu().item(), \
                r_i
 
+    def pretrain_forward_model_pixel(self, state_batch, next_state_batch, action_batch):
+        # Intrinsic reward learning
+        actions = action_batch.unsqueeze(dim=1).long()
+        action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
+        action_batch.scatter_(1, actions, 1)
+        state_batch = state_batch.unsqueeze(dim=1)
+        next_state_batch = next_state_batch.unsqueeze(dim=1)
+        self.forward_icm_optimizer.zero_grad()
+        predicted_feature_next_states = self.forward_icm(action_batch, state_batch)
+        loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, next_state_batch)
+        loss_next_state_predictor.backward()
+        self.forward_icm_optimizer.step()
+
+
 
 class CuriousDQNAgent(DQNAgent):
     def __init__(self, device):
@@ -315,4 +329,4 @@ class CuriousDQNAgent(DQNAgent):
 
         self.n_iter += 1
         return dqn_loss.detach().cpu().item(), loss.detach().cpu().item(), \
-               loss_next_state_predictor.detach().cpu().item(), r_i.detach().cpu().item()
+               loss_next_state_predictor.detach().cpu().item(), r_i

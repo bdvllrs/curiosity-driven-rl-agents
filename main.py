@@ -62,6 +62,15 @@ losses_forward = []
 losses_all = []
 actions_use = []
 
+if config().sim.agent.pretrain:
+    for i in range(1000):
+        state = env.reset()
+        action = possible_actions[agent.draw_action(state, is_test)]
+        # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
+        # env.plot()
+        next_state, _, _ = env.step(action)
+        agent.pretrain_forward_model_pixel(state, next_state, action)
+
 for e in tqdm(range(num_episodes)):
     metrics = train_metrics if not is_test else test_metrics
     state = env.reset()
