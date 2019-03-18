@@ -32,7 +32,7 @@ class Critic(nn.Module):
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim[0] * out_dim[1] * 5 + 4, 128),
+                    nn.Linear(out_dim + 4, 128),
                     nn.ReLU(),
                     nn.Linear(128, 64),
                     nn.ReLU(),
@@ -75,7 +75,7 @@ class Actor(nn.Module):
             out_dim = output_size_conv2d((board_size, board_size), conv_layers)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim[0] * out_dim[1] * 5, 128),
+                    nn.Linear(out_dim, 128),
                     nn.ReLU(),
                     nn.Linear(128, 64),
                     nn.ReLU(),

@@ -33,7 +33,7 @@ class DQNUnit(nn.Module):
                     out_dim = output_size_conv2d_layer(out_dim[0], out_dim[1], layer)
             self.conv = nn.Sequential(*conv_layers)
             self.fc = nn.Sequential(
-                    nn.Linear(out_dim[0] * out_dim[1] * 5, 32),
+                    nn.Linear(out_dim, 32),
                     nn.ReLU(),
                     nn.Linear(32, n_actions),
             )
