@@ -21,10 +21,9 @@ class Env:
         self.size = config().sim.env.size
         self.agent_position = None
         self.coin_positions = None
-        self.max_length = config().sim.env.max_length
         self.board_memory = []
         self.state_memory = []
-        self.seen_positions = []
+        self.mask_board = None
 
     def _get_board(self):
         board = self.board.copy()
@@ -102,11 +101,10 @@ class Env:
         state[x, y] = board[x, y]
         depth_of_field = config().sim.env.state.depth_of_field
         positions = [self.agent_position]
-        recursive_walk(positions, state, board, depth_of_field, self.seen_positions)
+        recursive_walk(positions, state, board, depth_of_field, self.mask_board)
         if config().sim.env.state.type == "memory":
             # we add previously seen positions
-            for (x, y) in self.seen_positions:
-                state[x, y] = board[x, y]
+            state[self.mask_board] = board[self.mask_board]
         return state
 
     def _get_state_simple(self, board, blank):
@@ -187,8 +185,8 @@ class Env:
         self.iter = 1
         self.board_memory = []
         self.state_memory = []
-        self.seen_positions = []
         self.board = maze(self.size, self.size)
+        self.mask_board = np.full_like(self.board, False, dtype=bool)
         possible_positions = list(zip(*np.where(self.board == 1)))
         self.agent_position = random.sample(possible_positions, 1)[0]
         self.coin_positions = random.sample(possible_positions, config().sim.env.number_coins)
@@ -244,32 +242,30 @@ class Env:
 
 
 def recursive_walk(positions, state, board, max_steps, all_positions=None):
-    if all_positions is None:
-        all_positions = []
     x, y = positions[-1]
     if max_steps == 0:
         return
-    if board[x + 1, y] != 0 and (x + 1, y) not in positions:
+    if board[x + 1, y] != 0 and (x + 1, y) not in positions and (all_positions is None or not all_positions[x + 1, y]):
         positions.append((x + 1, y))
-        if positions[-1] not in all_positions:
-            all_positions.append(positions[-1])
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x + 1, y] = board[x + 1, y]
         recursive_walk(positions, state, board, max_steps - 1, all_positions)
-    if board[x - 1, y] != 0 and (x - 1, y) not in positions:
+    if board[x - 1, y] != 0 and (x - 1, y) not in positions and (all_positions is None or not all_positions[x - 1, y]):
         positions.append((x - 1, y))
-        if positions[-1] not in all_positions:
-            all_positions.append(positions[-1])
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x - 1, y] = board[x - 1, y]
         recursive_walk(positions, state, board, max_steps - 1, all_positions)
-    if board[x, y + 1] != 0 and (x, y + 1) not in positions:
+    if board[x, y + 1] != 0 and (x, y + 1) not in positions and (all_positions is None or not all_positions[x, y + 1]):
         positions.append((x, y + 1))
-        if positions[-1] not in all_positions:
-            all_positions.append(positions[-1])
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x, y + 1] = board[x, y + 1]
         recursive_walk(positions, state, board, max_steps - 1, all_positions)
-    if board[x, y - 1] != 0 and (x, y - 1) not in positions:
+    if board[x, y - 1] != 0 and (x, y - 1) not in positions and (all_positions is None or not all_positions[x, y - 1]):
         positions.append((x, y - 1))
-        if positions[-1] not in all_positions:
-            all_positions.append(positions[-1])
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x, y - 1] = board[x, y - 1]
         recursive_walk(positions, state, board, max_steps - 1, all_positions)
