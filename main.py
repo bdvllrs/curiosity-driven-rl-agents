@@ -60,6 +60,7 @@ returns = []
 losses_critic = []
 losses_forward = []
 losses_all = []
+actions_use = []
 
 for e in tqdm(range(num_episodes)):
     metrics = train_metrics if not is_test else test_metrics
@@ -94,12 +95,12 @@ for e in tqdm(range(num_episodes)):
             loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
             metrics.add_losses(loss_critic)
 
-
             returns_intra.append(r_i.detach().numpy())
             returns.append(reward_batch.detach().numpy())
             losses_critic.append(loss_critic)
             losses_forward.append(loss_next_state_predictor)
             losses_all.append(loss)
+            actions_use.append(action_batch.detach().numpy())
 
 
         state = next_state
@@ -116,6 +117,7 @@ for e in tqdm(range(num_episodes)):
             np.save(filepath + "/losses_all.npy", losses_all)
             np.save(filepath + "/losses_critic.npy", losses_critic)
             np.save(filepath + "/losses_forward.npy", losses_forward)
+            np.save(filepath + "/actions.npy", actions_use)
             #env.make_anim(filepath + "/train-")
 
     if config().sim.output.save_figs and not is_test and not (train_count % config().sim.output.save_every):

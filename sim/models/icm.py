@@ -96,11 +96,11 @@ class Forward_pixel(nn.Module):
             dim_features = 21 * 21
         n_actions = 4
         self.fc = nn.Sequential(
-                nn.Linear(dim_features + n_actions, dim_features),
+                nn.Linear(dim_features + n_actions, 16),
                 nn.ReLU(),
-                nn.Linear(dim_features, 64),
+                nn.Linear(16, 16),
                 nn.ReLU(),
-                nn.Linear(64, dim_features),
+                nn.Linear(16, dim_features),
         )
 
     def forward(self, action, features):

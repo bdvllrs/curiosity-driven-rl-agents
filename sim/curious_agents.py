@@ -49,6 +49,8 @@ class CuriousACAgent(ACAgent):
             action = np.argmax(action_probs[0])
         self.steps_done += 1
 
+
+
         return action
 
     def intrinsic_reward_pixel(self, prev_state, action, next_state):
