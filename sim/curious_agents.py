@@ -82,16 +82,17 @@ class CuriousACAgent(ACAgent):
         action_batch.scatter_(1, actions, 1)
         state_batch = state_batch.unsqueeze(dim=1)
         next_state_batch = next_state_batch.unsqueeze(dim=1)
-        if config().sim.agent.step == "ICM":
-            r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
-        if config().sim.agent.step == "pixel":
-            r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
-        if config().sim.agent.step == "RF":
-            r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
-        if not config().sim.agent.curious_only:
-            reward_batch = reward_batch + r_i
-        else:
-            reward_batch = r_i
+        with torch.no_grad():
+            if config().sim.agent.step == "ICM":
+                r_i = self.intrinsic_reward_ICM(state_batch, action_batch, next_state_batch)
+            if config().sim.agent.step == "pixel":
+                r_i = self.intrinsic_reward_pixel(state_batch, action_batch, next_state_batch)
+            if config().sim.agent.step == "RF":
+                r_i = self.intrinsic_reward_RF(state_batch, action_batch, next_state_batch)
+            if not config().sim.agent.curious_only:
+                reward_batch = reward_batch + r_i
+            else:
+                reward_batch = r_i
 
         loss_critic, actor_loss = self.get_losses(state_batch, next_state_batch, action_batch, reward_batch)
 
