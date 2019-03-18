@@ -63,14 +63,27 @@ losses_all = []
 actions_use = []
 
 if config().sim.agent.pretrain:
-    for i in range(1000):
+    for i in tqdm(range(1000)):
         state = env.reset()
-        action = possible_actions[agent.draw_action(state, is_test)]
-        # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
-        # env.plot()
-        next_state, _, _ = env.step(action)
-        agent.pretrain_forward_model_pixel(state, next_state, action)
+        terminal = False
+        while not terminal:
+            action = possible_actions[agent.draw_action(state, is_test)]
+            # action = random.sample(["top", "bottom", "right", "left"], 1)[0]
+            # env.plot
+            next_state, reward, terminal = env.step(action)
+            experience_replay.add(state, next_state, action_to_number[action], reward)
 
+            # Do some learning
+            batch = experience_replay.get_batch(batch_size)
+
+            if batch is not None:
+                state_batch, next_state_batch, action_batch, reward_batch = batch
+                state_batch = torch.FloatTensor(state_batch).to(device)
+                next_state_batch = torch.FloatTensor(next_state_batch).to(device)
+                action_batch = torch.FloatTensor(action_batch).to(device)
+                reward_batch = torch.FloatTensor(reward_batch).to(device)
+
+                loss_pretrain = agent.pretrain_forward_model_pixel(state_batch, next_state_batch, action_batch)
 for e in tqdm(range(num_episodes)):
     metrics = train_metrics if not is_test else test_metrics
     state = env.reset()

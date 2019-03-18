@@ -7,6 +7,9 @@ from utils import config
 from .utils import soft_update
 from .models.icm import ICMFeatures, ICMForward, ICMInverseModel, Forward_pixel
 
+device = torch.device("cpu")
+if config().learning.cuda and torch.cuda.is_available():
+    device = torch.device("cuda")
 
 class CuriousACAgent(ACAgent):
     """
@@ -169,7 +172,6 @@ class CuriousACAgent(ACAgent):
                r_i
 
     def pretrain_forward_model_pixel(self, state_batch, next_state_batch, action_batch):
-        # Intrinsic reward learning
         actions = action_batch.unsqueeze(dim=1).long()
         action_batch = torch.zeros(actions.size(0), 4, dtype=torch.float).to(self.device)
         action_batch.scatter_(1, actions, 1)
@@ -180,6 +182,7 @@ class CuriousACAgent(ACAgent):
         loss_next_state_predictor = F.mse_loss(predicted_feature_next_states, next_state_batch)
         loss_next_state_predictor.backward()
         self.forward_icm_optimizer.step()
+        return loss_next_state_predictor
 
 
 
