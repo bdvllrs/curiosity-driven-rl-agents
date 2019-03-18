@@ -8,7 +8,7 @@ class DQNUnit(nn.Module):
         super(DQNUnit, self).__init__()
         if config().sim.env.state.type == "simple":
             self.simple_fc = nn.Sequential(
-                    nn.Linear(4, 8),
+                    nn.Linear(8, 8),
                     nn.ReLU(),
                     nn.Linear(8, 8),
                     nn.ReLU(),
