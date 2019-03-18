@@ -1,1 +1,1 @@
-from sim.models.actor_critic import ActorCritic, ConvLayers
+from sim.models.actor_critic import ActorCritic, EmbedLayer
