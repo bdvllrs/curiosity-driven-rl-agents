@@ -107,7 +107,7 @@ class A3CAgent:
         self.share_grads()
         self.ac_optimizer.step()
 
-        return loss.detach().item()
+        return loss.detach().item(), value_loss.detach().item(), policy_loss.detach().item()
 
     def save(self, name):
         """
@@ -236,13 +236,13 @@ class CuriousA3CAgent(A3CAgent):
             predicted_feature_next, feature_next = self.icm(state_batch, next_state_batch,
                                                             action_batch)
             loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
-            loss = loss_next_state_predictor + self.lbd * loss
+            loss = loss_next_state_predictor + self.lbd * loss_ac
 
         if config().sim.agent.step == "pixel":
             predicted_feature_next, feature_next = self.icm(state_batch, next_state_batch,
                                                             action_batch)
             loss_next_state_predictor = F.mse_loss(predicted_feature_next, feature_next)
-            loss = loss_next_state_predictor + self.lbd * loss
+            loss = loss_next_state_predictor + self.lbd * loss_ac
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.ac_model.parameters(), self.config.learning.max_grad_norm)
@@ -251,7 +251,8 @@ class CuriousA3CAgent(A3CAgent):
         self.ac_optimizer.step()
         self.icm_optimizer.step()
 
-        return loss.detach().cpu().item(), loss_ac.detach().item(), loss_next_state_predictor.detach().item(), loss_predictor.detach().item()
+        return (loss.detach().cpu().item(), loss_ac.detach().item(), value_loss.detach().item(),
+                policy_loss.detach().item(), loss_next_state_predictor.detach().item(), loss_predictor.detach().item())
 
     def save(self, name):
         """
