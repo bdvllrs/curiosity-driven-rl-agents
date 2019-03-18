@@ -8,7 +8,7 @@ class EmbedLayer(nn.Module):
         if config().sim.env.state.type == "simple":
             self.out_dim = 128
             self.embed = nn.Sequential(
-                    nn.Linear(4, self.out_dim),
+                    nn.Linear(8, self.out_dim),
                     nn.ReLU(),
                     nn.Linear(self.out_dim, self.out_dim),
                     nn.ReLU(),
