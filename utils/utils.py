@@ -17,6 +17,7 @@ def output_size_conv2d_layer(height, width, layer):
     return height_out, width_out, layer.out_channels
 
 
+
 def output_size_conv2d(out_dim, layers):
     height, width = out_dim
     out_channels = 1

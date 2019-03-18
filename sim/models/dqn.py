@@ -18,10 +18,13 @@ class DQNUnit(nn.Module):
             board_size = config().sim.env.size
             n_actions = 4
             conv_layers = [
-                nn.Conv2d(1, 5, 3),
+                nn.Conv2d(1, 16, 3, stride=2, padding=1),
                 nn.ReLU(),
-                nn.Conv2d(5, 5, 3),
-                nn.MaxPool2d(2),
+                nn.Conv2d(16, 32, 3, stride=2, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(32, 32, 3, stride=2, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(32, 32, 3, stride=2, padding=1),
                 nn.ReLU(),
             ]
             out_dim = (board_size, board_size)

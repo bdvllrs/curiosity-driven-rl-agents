@@ -9,10 +9,13 @@ from utils import config, output_size_conv2d
 __all__ = ["ICMFeatures", "ICMInverseModel", "ICMForward"]
 
 conv_layers = [
-    nn.Conv2d(1, 5, 3),
+    nn.Conv2d(1, 16, 3, stride=2, padding=1),
     nn.ReLU(),
-    nn.Conv2d(5, 5, 3),
-    nn.MaxPool2d(2),
+    nn.Conv2d(16, 32, 3, stride=2, padding=1),
+    nn.ReLU(),
+    nn.Conv2d(32, 32, 3, stride=2, padding=1),
+    nn.ReLU(),
+    nn.Conv2d(32, 32, 3, stride=2, padding=1),
     nn.ReLU(),
 ]
 
