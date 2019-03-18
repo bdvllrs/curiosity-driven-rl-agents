@@ -21,6 +21,7 @@ class Env:
         self.size = config().sim.env.size
         self.agent_position = None
         self.coin_positions = None
+        self.max_length = config().sim.env.max_length
         self.board_memory = []
         self.state_memory = []
         self.seen_positions = []
@@ -204,13 +205,13 @@ class Env:
             action: in ["top", "left", "right", "bottom"]
         Returns: next_state, reward, terminal
         """
+        terminal = self.iter == self.max_length
         if action in self._get_possible_actions():  # Si action possible on la fait, sinon on fait rien
             self.agent_position = self._action_to_position(action)
         reward = 0
         if self.agent_position in self.coin_positions:
             reward = 1
             self.coin_positions.remove(self.agent_position)
-        terminal = len(self.coin_positions) == 0
         board = self._get_board()
         next_state = self._get_state(board)
         self._add_state(next_state)
