@@ -193,6 +193,7 @@ class Env:
         possible_positions = list(zip(*np.where(self.board == 1)))
         self.agent_position = random.sample(possible_positions, 1)[0]
         self.seen_positions.append(self.agent_position)
+        self.mask_board[self.seen_positions[-1]] = True
         self.coin_positions = random.sample(possible_positions, config().sim.env.number_coins)
         board = self._get_board()
         state = self._get_state(board)
