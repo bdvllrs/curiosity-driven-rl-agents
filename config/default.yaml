@@ -7,7 +7,12 @@ sim:  # simulations
     number_coins: 60  # Number of coins on the board
     max_length: 100  # Maximum number of iterations before terminal state
     state:
-      type: progressive  # in [progressive, hard, simple] -- simple is 4 numbers giving the number of coins in the 4 directions
+      # Types of state:
+      # - simple: 4 values for the 4 directions with the number of coins in each direction (-1 if wall)
+      # - progressive: see everything with a radius of depth_of_field
+      # - hard: see everything in every direction until the next wall
+      # - memory: progressive bu seen positions stay in the state
+      type: progressive  # in [progressive, hard, memory, simple] -- simple is 4 numbers giving the number of coins in the 4 directions
       depth_of_field: 5  # only if progressive state. Size of the viewing radius
 
   output:
@@ -16,6 +21,7 @@ sim:  # simulations
 
   agent:
     curious: Yes  # Use ICM Module?
+    step: ICM  # In RF, ICM and pixel
 
 learning:
   cuda: No

@@ -17,6 +17,8 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
     agent.train()
 
     returns = []
+    intrinsic_returns = []
+    extrinsic_returns = []
     losses = []
 
     env = Env()
@@ -53,18 +55,22 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             action_log_prob = action_log_prob.gather(1, action)
             log_probs.append(action_log_prob)
 
-            next_state, reward, terminal = env.step(action)
+            next_state, extrinsic_reward, terminal = env.step(action)
+
+            extrinsic_returns.append(extrinsic_reward)
+            reward = extrinsic_reward
 
             states.append(next_state)
 
             # ICM if used
             if config.sim.agent.curious:
-                if config.sim.agent.step == "ICM":
-                    reward += agent.intrinsic_reward(state, probs[-1], next_state)
-                if config.sim.agent.step == "RF":
-                    reward += agent.intrinsic_reward_rf(state, probs[-1], next_state)
-                if config.sim.agent.step == "pixel":
-                    reward += agent.intrinsic_reward_pixel(state, probs[-1], next_state)
+                if config.sim.agent.step in ["ICM", "RF"]:
+                    intrinsic_reward = agent.intrinsic_reward(state, probs[-1], next_state)
+                else:  # config.sim.agent.step == "pixel":
+                    intrinsic_reward = agent.intrinsic_reward_pixel(state, probs[-1], next_state)
+                intrinsic_returns.append(intrinsic_reward)
+
+                reward += intrinsic_reward
             state = next_state
             rewards.append(reward)
 
@@ -76,10 +82,12 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
         returns.append(sum(rewards))
         losses.append(loss)
 
-        if not e % config.metrics.train_cycle_length:
+        if idx == 1 and not e % config.metrics.train_cycle_length:
             if config.sim.output.save_figs:
-                filepath = config.filepath + f"/metrics_agent_{idx}"
+                filepath = config.filepath + f"/metrics_"
                 np.save(filepath + "_returns.npy", returns)
+                np.save(filepath + "_intrinsic_returns.npy", intrinsic_returns)
+                np.save(filepath + "_extrinsic_returns.npy", extrinsic_returns)
                 np.save(filepath + "_losses.npy", losses)
                 if idx == 1:
                     env.make_anim(config.filepath + "/train-")

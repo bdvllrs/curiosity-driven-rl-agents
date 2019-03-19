@@ -5,45 +5,32 @@ Pathak et al. Intrinsic Curiosity Module
 import torch
 import torch.nn as nn
 
-from utils import config, output_size_conv2d
+from utils import config
 
 _all_ = ["ICMFeatures", "ICMInverseModel", "ICMForward", "ICM"]
 
 
 class ICMFeatures(nn.Module):
-    def __init__(self):
+    def __init__(self, embed_model):
         super(ICMFeatures, self).__init__()
-        if config().sim.env.state.type == "simple":
-            feat_dim = config().learning.icm.feature_dim
-            self.simple_fc = nn.Sequential(
-                    nn.Linear(4, feat_dim),
-                    nn.ReLU(),
-                    nn.Linear(feat_dim, feat_dim),
-                    nn.ReLU(),
-                    nn.Linear(feat_dim, feat_dim)
-            )
-        else:
-            board_size = config().sim.env.size
-            conv_layers = [
-                nn.Conv2d(1, 16, 4, stride=2),
-                nn.ReLU(),
-                nn.Conv2d(16, 32, 2),
-                nn.ReLU(),
-            ]
-            out_dim = output_size_conv2d((board_size, board_size), conv_layers)
-            self.conv = nn.Sequential(*conv_layers)
-            self.fc = nn.Sequential(
-                    nn.Linear(out_dim, config().learning.icm.feature_dim),
-                    nn.ReLU()
-            )
+        self.embed_model = embed_model
+        self.fc = nn.Sequential(
+                nn.Linear(256, config().learning.icm.feature_dim),
+                nn.ReLU()
+        )
 
-    def forward(self, states):
-        if config().sim.env.state.type == "simple":
-            states = states.reshape(states.size(0), states.size(2))
-            return self.simple_fc(states)
-        out = self.conv(states)
-        out = out.view(states.size(0), -1)
-        return self.fc(out)
+    def forward(self, states, lstm_state=None):
+        if lstm_state is None:
+            h, c = torch.zeros(1, 256), torch.zeros(1, 256)
+            features = torch.zeros(states.size(0), 256)
+            states = states.unsqueeze(0)
+            for k in range(states.size(1)):
+                h, c = self.embed_model(states[:, k], (h, c))
+                features[k] = h[0, :]
+            h = features
+        else:
+            h, _ = self.embed_model(states, lstm_state)
+        return self.fc(h)
 
 
 class ICMInverseModel(nn.Module):
@@ -85,19 +72,15 @@ class ICMForward(nn.Module):
 
 
 class ICM(nn.Module):
-    def __init__(self):
+    def __init__(self, embed_model):
         super(ICM, self).__init__()
+
+        self.forward_model = ICMForward()
         if config().sim.agent.step == "ICM":
-            self.features_model = ICMFeatures()
-            self.forward_model = ICMForward()
             self.inverse_model = ICMInverseModel()
 
-        if config().sim.agent.step == "RF":
-            self.features_model = ICMFeatures()
-            self.forward_model = ICMForward()
-
-        if config().sim.agent.step == "pixel":
-            self.forward_model = ICMForward()
+        if config().sim.agent.step in ["RF", "ICM"]:
+            self.features_model = ICMFeatures(embed_model)
 
     def forward(self, prev_state, next_state, action):
         if config().sim.agent.step == "ICM":

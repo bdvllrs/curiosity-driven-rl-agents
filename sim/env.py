@@ -23,6 +23,9 @@ class Env:
         self.coin_positions = None
         self.board_memory = []
         self.state_memory = []
+        self.mask_board = None
+        self.seen_positions = []
+        self.max_length = config().sim.env.max_length
 
     def _get_board(self):
         board = self.board.copy()
@@ -100,7 +103,10 @@ class Env:
         state[x, y] = board[x, y]
         depth_of_field = config().sim.env.state.depth_of_field
         positions = [self.agent_position]
-        recursive_walk(positions, state, board, depth_of_field)
+        recursive_walk(positions, state, board, depth_of_field, self.mask_board, self.seen_positions)
+        if config().sim.env.state.type == "memory":
+            # we add previously seen positions
+            state[self.mask_board] = board[self.mask_board]
         return state
 
     def _get_state_simple(self, board, blank):
@@ -109,7 +115,7 @@ class Env:
         stop_left = False
         stop_top = False
         stop_bottom = False
-        state = np.zeros(4)
+        state = np.zeros(8)
         if blank:
             return state
         for k in range(1, self.size):
@@ -118,33 +124,33 @@ class Env:
                     state[0] += 1
                 if self.board[x, y + k] == 0:
                     if k == 1:  # If direct wall, -1 state, otherwise just 0, but we can still go in this direction.
-                        state[0] = -1
+                        state[4] = k
                     stop_right = True
             if not stop_left:
                 if board[x, y - k] == 0.3:
                     state[1] += 1
                 if self.board[x, y - k] == 0:
                     if k == 1:
-                        state[1] = -1
+                        state[5] = k
                     stop_left = True
             if not stop_top:
                 if board[x - k, y] == 0.3:
                     state[2] += 1
                 if self.board[x - k, y] == 0:
                     if k == 1:
-                        state[2] = -1
+                        state[6] = k
                     stop_top = True
             if not stop_bottom:
                 if board[x + k, y] == 0.3:
                     state[3] += 1
                 if self.board[x + k, y] == 0:
                     if k == 1:
-                        state[3] = -1
+                        state[7] = k
                     stop_bottom = True
         return state
 
     def _get_state(self, board, blank=False):
-        if config().sim.env.state.type == "progressive":
+        if config().sim.env.state.type in ["progressive", "memory"]:
             return self._get_state_progressive(board, blank)
         elif config().sim.env.state.type == "simple":
             return self._get_state_simple(board, blank)
@@ -180,10 +186,13 @@ class Env:
         self.episode += 1
         self.iter = 1
         self.board_memory = []
+        self.seen_positions = []
         self.state_memory = []
         self.board = maze(self.size, self.size)
+        self.mask_board = np.full_like(self.board, False, dtype=bool)
         possible_positions = list(zip(*np.where(self.board == 1)))
         self.agent_position = random.sample(possible_positions, 1)[0]
+        self.seen_positions.append(self.agent_position)
         self.coin_positions = random.sample(possible_positions, config().sim.env.number_coins)
         board = self._get_board()
         state = self._get_state(board)
@@ -196,9 +205,7 @@ class Env:
         """
         Args:
             action: in ["top", "left", "right", "bottom"]
-
         Returns: next_state, reward, terminal
-
         """
         if action in self._get_possible_actions():  # Si action possible on la fait, sinon on fait rien
             self.agent_position = self._action_to_position(action)
@@ -206,6 +213,7 @@ class Env:
         if self.agent_position in self.coin_positions:
             reward = 1
             self.coin_positions.remove(self.agent_position)
+        self.seen_positions.append(self.agent_position)
         terminal = len(self.coin_positions) == 0
         board = self._get_board()
         next_state = self._get_state(board)
@@ -238,23 +246,31 @@ class Env:
         plt.show()
 
 
-def recursive_walk(positions, state, board, max_steps):
+def recursive_walk(positions, state, board, max_steps, all_positions=None, seen_positions=None):
     x, y = positions[-1]
     if max_steps == 0:
         return
-    if board[x + 1, y] != 0 and (x + 1, y) not in positions:
+    if board[x + 1, y] != 0 and (x + 1, y) not in positions and (seen_positions is None or (x + 1, y) not in seen_positions):
         positions.append((x + 1, y))
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x + 1, y] = board[x + 1, y]
-        recursive_walk(positions, state, board, max_steps - 1)
-    if board[x - 1, y] != 0 and (x - 1, y) not in positions:
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
+    if board[x - 1, y] != 0 and (x - 1, y) not in positions and (seen_positions is None or (x - 1, y) not in seen_positions):
         positions.append((x - 1, y))
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x - 1, y] = board[x - 1, y]
-        recursive_walk(positions, state, board, max_steps - 1)
-    if board[x, y + 1] != 0 and (x, y + 1) not in positions:
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
+    if board[x, y + 1] != 0 and (x, y + 1) not in positions and (seen_positions is None or (x, y + 1) not in seen_positions):
         positions.append((x, y + 1))
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x, y + 1] = board[x, y + 1]
-        recursive_walk(positions, state, board, max_steps - 1)
-    if board[x, y - 1] != 0 and (x, y - 1) not in positions:
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
+    if board[x, y - 1] != 0 and (x, y - 1) not in positions and (seen_positions is None or (x, y - 1) not in seen_positions):
         positions.append((x, y - 1))
+        if all_positions is not None:
+            all_positions[positions[-1][0], positions[-1][1]] = True
         state[x, y - 1] = board[x, y - 1]
-        recursive_walk(positions, state, board, max_steps - 1)
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)

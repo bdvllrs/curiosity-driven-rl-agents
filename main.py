@@ -3,7 +3,7 @@ import os
 import torch
 from torch.multiprocessing import Lock, Process, Value
 
-from sim.models.actor_critic import ActorCritic
+from sim.models.actor_critic import ActorCritic, EmbedLayer
 from sim.models.icm import ICM
 from utils import config, logger
 from utils.processes import test, train
@@ -24,13 +24,15 @@ if __name__ == "__main__":
         config().save_(filepath + "/config.yaml")
         logger().set(file=filepath + "/logs.txt")
 
-    shared_model = ActorCritic().to(device)
+    embed_shared_model = EmbedLayer()
+
+    shared_model = ActorCritic(embed_shared_model).to(device)
     shared_model.share_memory()
 
     shared_icm = None
     if config().sim.agent.curious:
         print("Using ICM Module.")
-        shared_icm = ICM().to(device)
+        shared_icm = ICM(embed_shared_model).to(device)
         shared_icm.share_memory()
 
     processes = []
