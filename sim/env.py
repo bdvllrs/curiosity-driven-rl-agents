@@ -192,11 +192,11 @@ class Env:
         self.mask_board = np.full_like(self.board, False, dtype=bool)
         possible_positions = list(zip(*np.where(self.board == 1)))
         self.agent_position = random.sample(possible_positions, 1)[0]
-        self.seen_positions.append(self.agent_position)
-        self.mask_board[self.seen_positions[-1]] = True
+        self.mask_board[self.agent_position] = True
         self.coin_positions = random.sample(possible_positions, config().sim.env.number_coins)
         board = self._get_board()
         state = self._get_state(board)
+        self.seen_positions.append(self.agent_position)
         self._add_state(state)
         self._add_board(board)
 
