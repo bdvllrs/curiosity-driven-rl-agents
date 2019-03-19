@@ -256,25 +256,25 @@ def recursive_walk(positions, state, board, max_steps, all_positions=None, seen_
             all_positions[positions[-1][0], positions[-1][1]] = True
             seen_positions.append(positions[-1])
         state[x + 1, y] = board[x + 1, y]
-        recursive_walk(positions, state, board, max_steps - 1, all_positions)
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
     if board[x - 1, y] != 0 and (x - 1, y) not in positions and (seen_positions is None or not (x - 1, y) in seen_positions):
         positions.append((x - 1, y))
         if all_positions is not None:
             all_positions[positions[-1][0], positions[-1][1]] = True
             seen_positions.append(positions[-1])
         state[x - 1, y] = board[x - 1, y]
-        recursive_walk(positions, state, board, max_steps - 1, all_positions)
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
     if board[x, y + 1] != 0 and (x, y + 1) not in positions and (seen_positions is None or not (x, y + 1) in seen_positions):
         positions.append((x, y + 1))
         if all_positions is not None:
             all_positions[positions[-1][0], positions[-1][1]] = True
             seen_positions.append(positions[-1])
         state[x, y + 1] = board[x, y + 1]
-        recursive_walk(positions, state, board, max_steps - 1, all_positions)
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
     if board[x, y - 1] != 0 and (x, y - 1) not in positions and (seen_positions is None or not (x, y - 1) in seen_positions):
         positions.append((x, y - 1))
         if all_positions is not None:
             all_positions[positions[-1][0], positions[-1][1]] = True
             seen_positions.append(positions[-1])
         state[x, y - 1] = board[x, y - 1]
-        recursive_walk(positions, state, board, max_steps - 1, all_positions)
+        recursive_walk(positions, state, board, max_steps - 1, all_positions, seen_positions)
