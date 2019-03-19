@@ -61,6 +61,7 @@ losses_critic = []
 losses_forward = []
 losses_all = []
 actions_use = []
+curiosity_score = []
 
 if config().sim.agent.pretrain:
     for i in tqdm(range(1000)):
@@ -92,7 +93,6 @@ for e in tqdm(range(num_episodes)):
     expected_return = 0
     discount = 1
 
-
     # Do an episode
     while not terminal:
         action = possible_actions[agent.draw_action(state, is_test)]
@@ -107,7 +107,6 @@ for e in tqdm(range(num_episodes)):
         # Do some learning
         batch = experience_replay.get_batch(batch_size)
 
-
         if not is_test and batch is not None:
             state_batch, next_state_batch, action_batch, reward_batch = batch
             state_batch = torch.FloatTensor(state_batch).to(device)
@@ -115,7 +114,8 @@ for e in tqdm(range(num_episodes)):
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
             if config().sim.agent.curious:
-                loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
+                loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch,
+                                                                                action_batch, reward_batch)
             else:
                 loss_critic, loss = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
             metrics.add_losses(loss_critic)
@@ -131,8 +131,7 @@ for e in tqdm(range(num_episodes)):
 
         state = next_state
 
-
-
+    curiosity_score.append(env.get_curiosity_score())
 
     metrics.add_return(expected_return)
 
@@ -144,7 +143,8 @@ for e in tqdm(range(num_episodes)):
             np.save(filepath + "/losses_critic.npy", losses_critic)
             np.save(filepath + "/losses_forward.npy", losses_forward)
             np.save(filepath + "/actions.npy", actions_use)
-            #env.make_anim(filepath + "/train-")
+            np.save(filepath + "/curiosity_score.npy", curiosity_score)
+            # env.make_anim(filepath + "/train-")
 
     if config().sim.output.save_figs and not is_test and not (train_count % config().sim.output.save_every):
         env.make_anim(date + "/train-")

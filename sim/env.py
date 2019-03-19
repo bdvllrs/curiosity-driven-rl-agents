@@ -182,6 +182,9 @@ class Env:
     def get_blank_state(self):
         return self._get_state(self._get_board(), blank=True)
 
+    def get_curiosity_score(self):
+        return float(len(self.seen_positions)) / float(self.max_length)
+
     def reset(self):
         self.episode += 1
         self.iter = 1
@@ -219,7 +222,8 @@ class Env:
             self.coin_positions.remove(self.agent_position)
         board = self._get_board()
         next_state = self._get_state(board)
-        self.seen_positions.append(self.agent_position)
+        if self.agent_position not in self.seen_positions:
+            self.seen_positions.append(self.agent_position)
         self.mask_board[self.seen_positions[-1][0], self.seen_positions[-1][1]] = True
         self._add_state(next_state)
         self._add_board(board)
