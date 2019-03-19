@@ -114,16 +114,20 @@ for e in tqdm(range(num_episodes)):
             next_state_batch = torch.FloatTensor(next_state_batch).to(device)
             action_batch = torch.FloatTensor(action_batch).to(device)
             reward_batch = torch.FloatTensor(reward_batch).to(device)
-            loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
+            if config().sim.agent.curious:
+                loss_critic, loss, loss_next_state_predictor, r_i = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
+            else:
+                loss_critic, loss = agent.learn(state_batch, next_state_batch, action_batch, reward_batch)
             metrics.add_losses(loss_critic)
 
-            returns_intra.append(r_i.detach().numpy())
-            returns.append(reward_batch.detach().numpy())
-            losses_critic.append(loss_critic)
-            losses_forward.append(loss_next_state_predictor)
+            if config().sim.agent.curious:
+                returns_intra.append(r_i.detach().numpy())
+                losses_forward.append(loss_next_state_predictor)
+
             losses_all.append(loss)
             actions_use.append(action_batch.detach().numpy())
-
+            returns.append(reward_batch.detach().numpy())
+            losses_critic.append(loss_critic)
 
         state = next_state
 
