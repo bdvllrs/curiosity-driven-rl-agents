@@ -221,9 +221,9 @@ class CuriousA3CAgent(A3CAgent):
         predicted_actions, predicted_feature_next, feature_pred, feature_next = self.icm(state_batch, next_state_batch,
                                                                                          action_batch)
 
-        loss = torch.zeros(0)
-        loss_next_state_predictor = torch.zeros(0)
-        loss_predictor = torch.zeros(0)
+        loss = torch.zeros(1)
+        loss_next_state_predictor = torch.zeros(1)
+        loss_predictor = torch.zeros(1)
 
         if config().sim.agent.step == "ICM":
             loss_predictor = F.mse_loss(predicted_actions, action_batch)
