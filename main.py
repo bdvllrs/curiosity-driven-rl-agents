@@ -9,6 +9,8 @@ from utils import config, logger
 from utils.processes import test, train
 
 if __name__ == "__main__":
+    if config().sim.agent.step == "pixel":
+        config().learning.icm.set_("feature_dim", 256)
     device = torch.device("cpu")
     if config().learning.cuda and torch.cuda.is_available():
         print("Using cuda")

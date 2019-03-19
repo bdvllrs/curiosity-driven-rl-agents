@@ -139,8 +139,6 @@ class CuriousA3CAgent(A3CAgent):
     def __init__(self, idx, device, config, shared_model, shared_icm):
         super(CuriousA3CAgent, self).__init__(idx, device, config, shared_model)
 
-        if config().sim.agent.step == "pixel":
-            config().learning.icm.set_("feature_dim", 256)
         self.icm = ICM(self.embed_model)
         self.icm_optimizer = Adam(self.icm.parameters(), lr=self.config.learning.icm.lr)
 
