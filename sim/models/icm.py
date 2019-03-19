@@ -80,11 +80,9 @@ class ICM(nn.Module):
         super(ICM, self).__init__()
 
         self.forward_model = ICMForward()
+        self.features_model = ICMFeatures(embed_model)
         if config().sim.agent.step == "ICM":
             self.inverse_model = ICMInverseModel()
-
-        if config().sim.agent.step in ["RF", "ICM"]:
-            self.features_model = ICMFeatures(embed_model)
 
     def forward(self, prev_state, next_state, action):
         if config().sim.agent.step == "ICM":
