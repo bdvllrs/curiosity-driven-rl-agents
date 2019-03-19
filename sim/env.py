@@ -217,9 +217,10 @@ class Env:
         if self.agent_position in self.coin_positions:
             reward = 1
             self.coin_positions.remove(self.agent_position)
-        self.seen_positions.append(self.agent_position)
         board = self._get_board()
         next_state = self._get_state(board)
+        self.seen_positions.append(self.agent_position)
+        self.mask_board[self.seen_positions[-1]] = True
         self._add_state(next_state)
         self._add_board(board)
         self.iter += 1
