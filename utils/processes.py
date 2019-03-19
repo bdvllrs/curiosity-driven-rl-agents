@@ -20,6 +20,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
     intrinsic_returns = []
     extrinsic_returns = []
     losses = []
+    curiosity_score = []
 
     env = Env()
 
@@ -77,6 +78,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
 
         returns.append(sum(rewards))
         losses.append(loss)
+        curiosity_score.append(env.get_curiosity_score())
 
         if idx == 1 and not e % config.metrics.train_cycle_length:
             if config.sim.output.save_figs:
@@ -85,6 +87,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
                 np.save(filepath + "_intrinsic_returns.npy", intrinsic_returns)
                 np.save(filepath + "_extrinsic_returns.npy", extrinsic_returns)
                 np.save(filepath + "_losses.npy", losses)
+                np.save(filepath + "_curiosity_score.npy", curiosity_score)
                 if idx == 1:
                     env.make_anim(config.filepath + "/train-")
 

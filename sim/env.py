@@ -202,6 +202,9 @@ class Env:
 
         return state
 
+    def get_curiosity_score(self):
+        return float(len(self.seen_positions)) / float(self.max_length)
+
     def step(self, action):
         """
         Args:
@@ -217,7 +220,8 @@ class Env:
         terminal = len(self.coin_positions) == 0
         board = self._get_board()
         next_state = self._get_state(board)
-        self.seen_positions.append(self.agent_position)
+        if self.agent_position not in self.seen_positions:
+            self.seen_positions.append(self.agent_position)
         self._add_state(next_state)
         self._add_board(board)
         self.iter += 1
