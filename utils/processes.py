@@ -63,10 +63,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             states.append(next_state)
 
             # ICM if used
-            if config.sim.agent.step in ["ICM", "RF"]:
-                intrinsic_reward = agent.intrinsic_reward(state, probs[-1], next_state)
-            else:  # config.sim.agent.step == "pixel":
-                intrinsic_reward = agent.intrinsic_reward_pixel(state, probs[-1], next_state)
+            intrinsic_reward = agent.intrinsic_reward(state, probs[-1], next_state)
             intrinsic_returns.append(intrinsic_reward)
 
             reward += intrinsic_reward
@@ -95,46 +92,47 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
 def test(idx, config, logger, device, shared_model, shared_icm, counter, lock):
     max_length = config.sim.env.max_length
     num_episodes = config.learning.num_episodes
+    pass
 
-    if config.sim.agent.curious:
-        agent = CuriousA3CAgent(idx, device, config, shared_model, shared_icm)
-    else:
-        agent = A3CAgent(idx, device, config, shared_model)
-    agent.eval()
-
-    returns = []
-    keys = []
-
-    env = Env()
-
-    while True:
-            agent.reset()
-            state = env.reset()
-            terminal = False
-
-            length_episode = 0
-            expected_return = 0
-
-            # Do an episode
-            while not terminal or length_episode < max_length:
-                length_episode += 1
-                logits, value = agent.step(state, no_grad=True)
-                action_prob = F.softmax(logits, dim=1)
-
-                action = action_prob.multinomial(num_samples=1).detach()
-
-                next_state, reward, terminal = env.step(action)
-                expected_return += reward
-
-                state = next_state
-
-            returns.append(expected_return)
-            keys.append(counter.value)
-
-            if config.sim.output.save_figs:
-                filepath = config.filepath + f"/metrics_"
-                np.save(filepath + "_returns_test.npy", returns)
-                np.save(filepath + "_keys_test.npy", keys)
-                env.make_anim(config.filepath + "/test-")
-
-            time.sleep(60 * 5)
+    # if config.sim.agent.curious:
+    #     agent = CuriousA3CAgent(idx, device, config, shared_model, shared_icm)
+    # else:
+    #     agent = A3CAgent(idx, device, config, shared_model)
+    # agent.eval()
+    #
+    # returns = []
+    # keys = []
+    #
+    # env = Env()
+    #
+    # while True:
+    #         agent.reset()
+    #         state = env.reset()
+    #         terminal = False
+    #
+    #         length_episode = 0
+    #         expected_return = 0
+    #
+    #         # Do an episode
+    #         while not terminal or length_episode < max_length:
+    #             length_episode += 1
+    #             logits, value = agent.step(state, no_grad=True)
+    #             action_prob = F.softmax(logits, dim=1)
+    #
+    #             action = action_prob.multinomial(num_samples=1).detach()
+    #
+    #             next_state, reward, terminal = env.step(action)
+    #             expected_return += reward
+    #
+    #             state = next_state
+    #
+    #         returns.append(expected_return)
+    #         keys.append(counter.value)
+    #
+    #         if config.sim.output.save_figs:
+    #             filepath = config.filepath + f"/metrics_"
+    #             np.save(filepath + "_returns_test.npy", returns)
+    #             np.save(filepath + "_keys_test.npy", keys)
+    #             env.make_anim(config.filepath + "/test-")
+    #
+    #         time.sleep(60 * 5)

@@ -19,17 +19,21 @@ class ICMFeatures(nn.Module):
                 nn.ReLU()
         )
 
-    def forward(self, states, lstm_state=None):
+    def forward(self, states, lstm_state=None, pixel=False):
         if lstm_state is None:
             h, c = torch.zeros(1, 256), torch.zeros(1, 256)
             features = torch.zeros(states.size(0), 256)
             states = states.unsqueeze(0)
             for k in range(states.size(1)):
-                h, c = self.embed_model(states[:, k], (h, c))
+                with torch.no_grad():
+                    h, c = self.embed_model(states[:, k], (h, c))
                 features[k] = h[0, :]
             h = features
         else:
-            h, _ = self.embed_model(states, lstm_state)
+            with torch.no_grad():
+                h, _ = self.embed_model(states, lstm_state)
+        if pixel:
+            return h
         return self.fc(h)
 
 
@@ -97,8 +101,10 @@ class ICM(nn.Module):
                 feature_prev = self.features_model(prev_state)
                 feature_next = self.features_model(next_state)
             pred_next_features = self.forward_model(action, feature_prev)
-            return pred_next_features, feature_next
+            return None, pred_next_features, None, feature_next
 
         if config().sim.agent.step == "pixel":
+            prev_state = self.features_model(prev_state, pixel=True)
+            next_state = self.features_model(next_state, pixel=True)
             pred_next_features = self.forward_model(action, prev_state)
-            return pred_next_features, next_state
+            return None, pred_next_features, prev_state, next_state
