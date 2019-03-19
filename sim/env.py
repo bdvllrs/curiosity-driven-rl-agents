@@ -25,6 +25,7 @@ class Env:
         self.state_memory = []
         self.mask_board = None
         self.seen_positions = []
+        self.max_length = config().sim.env.max_length
 
     def _get_board(self):
         board = self.board.copy()
@@ -204,9 +205,7 @@ class Env:
         """
         Args:
             action: in ["top", "left", "right", "bottom"]
-
         Returns: next_state, reward, terminal
-
         """
         if action in self._get_possible_actions():  # Si action possible on la fait, sinon on fait rien
             self.agent_position = self._action_to_position(action)
