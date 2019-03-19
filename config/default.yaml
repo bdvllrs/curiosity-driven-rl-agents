@@ -49,7 +49,7 @@ learning:
   icm:  # To learn the ICM Module.
     eta: 0.2
     beta: 0.2
-    lbd: 0.1
+    lbd: 1.0
     lr: 0.001
     feature_dim: 128  # Dimension of the feature space
 
