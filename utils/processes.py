@@ -58,12 +58,13 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             states.append(next_state)
 
             # ICM if used
-            if config.sim.agent.step == "ICM":
-                reward += agent.intrinsic_reward(state, probs[-1], next_state)
-            if config.sim.agent.step == "RF":
-                reward += agent.intrinsic_reward_rf(state, probs[-1], next_state)
-            if config.sim.agent.step == "pixel":
-                reward += agent.intrinsic_reward_pixel(state, probs[-1], next_state)
+            if config.sim.agent.curious:
+                if config.sim.agent.step == "ICM":
+                    reward += agent.intrinsic_reward(state, probs[-1], next_state)
+                if config.sim.agent.step == "RF":
+                    reward += agent.intrinsic_reward_rf(state, probs[-1], next_state)
+                if config.sim.agent.step == "pixel":
+                    reward += agent.intrinsic_reward_pixel(state, probs[-1], next_state)
             state = next_state
             rewards.append(reward)
 
