@@ -56,6 +56,9 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
             action_log_prob = action_log_prob.gather(1, action)
             log_probs.append(action_log_prob)
 
+            if config.sim.agent.random:
+                action = np.random.randint(0, 5)
+
             next_state, extrinsic_reward, terminal = env.step(action)
 
             extrinsic_returns.append(extrinsic_reward)
