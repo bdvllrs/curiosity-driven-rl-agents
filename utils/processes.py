@@ -60,7 +60,7 @@ def train(idx, config, logger, device, shared_model, shared_icm, counter, lock):
 
             extrinsic_returns.append(extrinsic_reward)
             reward = 0
-            if not config().sim.agent.only_curious:
+            if not config.sim.agent.only_curious:
                 reward = extrinsic_reward
 
             states.append(next_state)
